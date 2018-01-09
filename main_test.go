@@ -224,10 +224,19 @@ func (c *Config) generateManifest(deploymentName string, stemcellVersion string,
 		ReleaseVersion:  bwatsVersion,
 	}
 
-	var err error
-	cloudConfigHasLargeVMType, err = checkCloudConfigFor(fmt.Sprintf("name: %s", largeVMType))
+	vmWare, err := checkBoshEnvFor("vsphere_cpi")
 	if err != nil {
 		return nil, err
+	}
+
+	if !vmWare {
+		cloudConfigHasLargeVMType, err = checkCloudConfigFor(fmt.Sprintf("name: %s", largeVMType))
+		if err != nil {
+			return nil, err
+		}
+		if !cloudConfigHasLargeVMType {
+			return nil, fmt.Errorf("Large VM type %s must be present for testing AWS, GCP, and Azure.", largeVMType)
+		}
 	}
 
 	if cloudConfigHasLargeVMType {
@@ -244,14 +253,21 @@ func (c *Config) generateManifest(deploymentName string, stemcellVersion string,
 }
 
 func checkCloudConfigFor(str string) (bool, error) {
+	return checkBoshFor("cloud-config", str)
+}
+
+func checkBoshEnvFor(str string) (bool, error) {
+	return checkBoshFor("env", str)
+}
+
+func checkBoshFor(command string, str string) (bool, error) {
 	var stdout []byte
-	stdout, err := bosh.RunInStdOut("cloud-config", "")
+	stdout, err := bosh.RunInStdOut(command, "")
 	if err != nil {
 		return false, err
 	}
 
-	cc := string(stdout)
-	return strings.Contains(cc, str), nil
+	return strings.Contains(string(stdout), str), nil
 }
 
 type BoshCommand struct {
@@ -444,7 +460,7 @@ var _ = Describe("BOSH Windows", func() {
 
 		bosh = NewBoshCommand(config, boshCertPath, timeout)
 
-		bosh.Run("login")
+		Expect(bosh.Run("login")).To(Succeed())
 		deploymentName = fmt.Sprintf("windows-acceptance-test-%d", getTimestampInMs())
 
 		pwd, err := os.Getwd()
@@ -465,7 +481,7 @@ var _ = Describe("BOSH Windows", func() {
 
 		// Ensure stemcell version has not already been uploaded to bosh director
 		var stdoutInfo BoshStemcell
-		json.Unmarshal(stdout, &stdoutInfo)
+		Expect(json.Unmarshal(stdout, &stdoutInfo)).To(Succeed())
 		for _, row := range stdoutInfo.Tables[0].Rows {
 			Expect(row.Version).NotTo(ContainSubstring(stemcellVersion))
 		}
@@ -519,20 +535,20 @@ var _ = Describe("BOSH Windows", func() {
 			return
 		}
 
-		bosh.Run(fmt.Sprintf("-d %s delete-deployment --force", deploymentName))
-		bosh.Run(fmt.Sprintf("delete-stemcell %s/%s", stemcellName, stemcellVersion))
-		bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", releaseVersion))
+		Expect(bosh.Run(fmt.Sprintf("-d %s delete-deployment --force", deploymentName))).To(Succeed())
+		Expect(bosh.Run(fmt.Sprintf("delete-stemcell %s/%s", stemcellName, stemcellVersion))).To(Succeed())
+		Expect(bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", releaseVersion))).To(Succeed())
 
 		// Delete the releases created by the tight loop test
 		for _, version := range tightLoopStemcellVersions {
-			bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", version))
+			Expect(bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", version))).To(Succeed())
 		}
 
 		if bosh.CertPath != "" {
-			os.RemoveAll(bosh.CertPath)
+			Expect(os.RemoveAll(bosh.CertPath)).To(Succeed())
 		}
 		if manifestPath != "" {
-			os.RemoveAll(manifestPath)
+			Expect(os.RemoveAll(manifestPath)).To(Succeed())
 		}
 	})
 
@@ -607,7 +623,7 @@ var _ = Describe("BOSH Windows", func() {
 			err := bosh.Run(fmt.Sprintf("-d %s run-errand --download-logs verify-root-disk-size --tty", deploymentName))
 			Expect(err).To(Succeed())
 		} else {
-			log.Printf("Skipped because vm_type '%s' does not exist.\n", largeVMType)
+			log.Printf("Skipped because vm_type '%s' does not exist (for vsphere_cpi).\n", largeVMType)
 		}
 	})
 })
