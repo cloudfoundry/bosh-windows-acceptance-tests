@@ -123,6 +123,14 @@ check-firewall "public"
 check-firewall "private"
 check-firewall "domain"
 
+# Check metadata server
+$MetadataServerAllowRules = Get-NetFirewallRule -Enabled True -Direction Outbound | Get-NetFirewallAddressFilter | W here-Object -FilterScript { $_.RemoteAddress -Eq '169.254.169.254' }
+If ($MetadataServerAllowRules.Count > 0) {
+  Write-Error "Firewall allows access to metadata server"
+  Exit 1
+}
+
+
 $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
 
 if ($windowsVersion -Match "2012") {
