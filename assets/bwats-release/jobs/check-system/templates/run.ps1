@@ -124,7 +124,7 @@ check-firewall "private"
 check-firewall "domain"
 
 # Check metadata server
-$MetadataServerAllowRules = Get-NetFirewallRule -Enabled True -Direction Outbound | Get-NetFirewallAddressFilter | W here-Object -FilterScript { $_.RemoteAddress -Eq '169.254.169.254' }
+$MetadataServerAllowRules = Get-NetFirewallRule -Enabled True -Direction Outbound | Get-NetFirewallAddressFilter | Where-Object -FilterScript { $_.RemoteAddress -Eq '169.254.169.254' }
 If ($MetadataServerAllowRules.Count > 0) {
   Write-Error "Firewall allows access to metadata server"
   Exit 1
