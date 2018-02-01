@@ -126,8 +126,20 @@ check-firewall "domain"
 # Check metadata server
 $MetadataServerAllowRules = Get-NetFirewallRule -Enabled True -Direction Outbound | Get-NetFirewallAddressFilter | Where-Object -FilterScript { $_.RemoteAddress -Eq '169.254.169.254' }
 If ($MetadataServerAllowRules -Ne $null) {
-  Write-Error "Firewall allows access to metadata server"
-  Exit 1
+  $RuleNames = $MetadataServerAllowRules | foreach { $_.InstanceID }
+  If ($RuleNames.Count -ne 2 ) {
+    Write-Error "Expected 2 firewall rules"
+    $RuleNames
+    Exit 1
+  }
+  If ($RuleNames -notcontains "Allow-BOSH-Agent-Metadata-Server") {
+    Write-Error "Did not find rule Allow-BOSH-Agent-Metadata-Server"
+    Exit 1
+  }
+  If ($RuleNames -notcontains "Allow-GCEAgent-Metadata-Server") {
+    Write-Error "Did not find rule Allow-GCEAgent-Metadata-Server"
+    Exit 1
+  }
 }
 
 
