@@ -529,7 +529,7 @@ var _ = Describe("BOSH Windows", func() {
 	// runs we check for the presence of a registry key that is an artifact of the
 	// original 'Automatic (Delayed Start)' configuration.
 
-	It("checks system dependencies and security, auto update has turned off, currently has a Service StartType of 'Manual' and initially had a StartType of 'Delayed', password is randomized and uses entire 200 GB root disk", func() {
+	It("checks system dependencies and security, auto update has turned off, currently has a Service StartType of 'Manual' and initially had a StartType of 'Delayed' and password is randomized", func() {
 		err := bosh.Run(fmt.Sprintf("-d %s run-errand --download-logs check-system --tty", deploymentName))
 		Expect(err).To(Succeed())
 	})
@@ -539,12 +539,12 @@ var _ = Describe("BOSH Windows", func() {
 		Expect(err).To(Succeed())
 	})
 
-	It("uses entire 200 GB root disk", func() {
-		if cloudConfigHasLargeVMType {
-			err := bosh.Run(fmt.Sprintf("-d %s run-errand --download-logs verify-root-disk-size --tty", deploymentName))
-			Expect(err).To(Succeed())
-		} else {
-			log.Printf("Skipped because vm_type '%s' does not exist.\n", largeVMType)
-		}
-	})
+	// It("uses entire 200 GB root disk", func() {
+	// 	if cloudConfigHasLargeVMType {
+	// 		err := bosh.Run(fmt.Sprintf("-d %s run-errand --download-logs verify-root-disk-size --tty", deploymentName))
+	// 		Expect(err).To(Succeed())
+	// 	} else {
+	// 		log.Printf("Skipped because vm_type '%s' does not exist.\n", largeVMType)
+	// 	}
+	// })
 })
