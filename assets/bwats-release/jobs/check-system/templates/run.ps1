@@ -284,4 +284,14 @@ if ($DS.ValidateCredentials('Administrator', 'Password123!')) {
     Exit 1
 }
 
+# Verify that we cannot read the contents of d:\ENV
+$ForbiddenDir = "d:\ENV"
+Get-Content $ForbiddenDir
+$Succeeded = $?
+
+if ($Succeeded) {
+    Write-Error "Error: Able to read ${ForbiddenDir} which should be disallowed"
+    Exit 1
+}
+
 Exit 0
