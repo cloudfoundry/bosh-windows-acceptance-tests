@@ -285,13 +285,10 @@ if ($DS.ValidateCredentials('Administrator', 'Password123!')) {
 }
 
 # Verify that we cannot read the contents of d:\ENV
-$ForbiddenDir = "d:\ENV"
-Get-Content $ForbiddenDir
-$Succeeded = $?
+$proc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c dir d:\ENV" -Verb runas -Wait -PassThru -NoNewWindow
 
-if ($Succeeded) {
+if ($proc.ExitCode -ne 0) {
     Write-Error "Error: Able to read ${ForbiddenDir} which should be disallowed"
-    whoami
     Exit 1
 }
 
