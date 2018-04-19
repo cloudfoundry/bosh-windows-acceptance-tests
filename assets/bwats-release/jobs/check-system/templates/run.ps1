@@ -291,6 +291,7 @@ $Succeeded = $?
 
 if ($Succeeded) {
     Write-Error "Error: Able to read ${ForbiddenDir} which should be disallowed"
+    whoami
     Exit 1
 }
 
