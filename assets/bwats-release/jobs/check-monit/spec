@@ -1,0 +1,13 @@
+---
+name: check_monit
+description: "Checks that a job containing a monit file with the specified content does not break deployments"
+templates:
+  run.ps1: bin/run.ps1
+
+packages: []
+
+properties:
+  check_monit.content:
+    description: "Monit File Content"
+    default: ""
+

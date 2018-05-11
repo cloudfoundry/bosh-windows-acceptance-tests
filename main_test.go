@@ -87,6 +87,31 @@ instance_groups:
   jobs:
   - name: check-updates
     release: {{.ReleaseName}}
+- name: check-monit-empty
+  instances: 1
+  stemcell: windows
+  lifecycle: errand
+  azs: [{{.AZ}}]
+  vm_type: {{.VmType}}
+  vm_extensions: [{{.VmExtensions}}]
+  networks:
+  - name: {{.Network}}
+  jobs:
+	- name: check-monit
+		release: {{.ReleaseName}}
+- name: check-monit-whitespace
+  instances: 1
+  stemcell: windows
+  lifecycle: errand
+  azs: [{{.AZ}}]
+  vm_type: {{.VmType}}
+  vm_extensions: [{{.VmExtensions}}]
+  networks:
+  - name: {{.Network}}
+  jobs:
+	- name: check-monit
+		release: {{.ReleaseName}}
+		content: "\t\n \t \n "
 `
 var rootDiskInstanceGroup = fmt.Sprintf(`
 - name: verify-root-disk-size
@@ -496,8 +521,17 @@ var _ = Describe("BOSH Windows", func() {
 			time.Second*65).Should(gbytes.Say("60 seconds passed"))
 	})
 
-	It("successfully runs redeploy in a tight loop", func() {
+	It("can run a job with an empty monit file", func() {
+		time.Sleep(60 * time.Second)
+		Eventually(downloadLogs("check-monit-empty", "check-monit", 0), time.Second*65).Should(gbytes.Say("Skipping job configuration for check-monit"))
+	})
 
+	It("can run a job with a monit file containing only whitespace", func() {
+		time.Sleep(60 * time.Second)
+		Eventually(downloadLogs("check-monit-whitespace", "check-monit", 0), time.Second*65).Should(gbytes.Say("Skipping job configuration for check-monit"))
+	})
+
+	It("successfully runs redeploy in a tight loop", func() {
 		pwd, err := os.Getwd()
 		Expect(err).To(BeNil())
 		releaseDir := filepath.Join(pwd, "assets", "bwats-release")
@@ -524,7 +558,7 @@ var _ = Describe("BOSH Windows", func() {
 		}
 	})
 
-	// The Agent changes the start type of it's service wrapper to 'Manual' immediately
+	// The Agent changes the start type of its service wrapper to 'Manual' immediately
 	// before the first job is started - this is prevent the Agent from coming back up
 	// after a restart, which we don't support.
 	//
