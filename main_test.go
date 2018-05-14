@@ -99,20 +99,22 @@ instance_groups:
   jobs:
   - name: check-monit
     release: {{.ReleaseName}}
-- name: check-monit-whitespace
-  instances: 1
-  stemcell: windows
-  lifecycle: errand
-  azs: [{{.AZ}}]
-  vm_type: {{.VmType}}
-  vm_extensions: [{{.VmExtensions}}]
-  networks:
-  - name: {{.Network}}
-  jobs:
-  - name: check-monit
-    release: {{.ReleaseName}}
-    content: "\t\n \t \n "
 `
+
+// - name: check-monit-whitespace
+//   instances: 1
+//   stemcell: windows
+//   lifecycle: errand
+//   azs: [{{.AZ}}]
+//   vm_type: {{.VmType}}
+//   vm_extensions: [{{.VmExtensions}}]
+//   networks:
+//   - name: {{.Network}}
+//   jobs:
+//   - name: check-monit
+//     release: {{.ReleaseName}}
+//     content: "\t\n \t \n "
+
 var rootDiskInstanceGroup = fmt.Sprintf(`
 - name: verify-root-disk-size
   instances: 1
@@ -522,14 +524,12 @@ var _ = Describe("BOSH Windows", func() {
 	})
 
 	It("can run a job with an empty monit file", func() {
-		time.Sleep(60 * time.Second)
-		Eventually(downloadLogs("check-monit-empty", "check-monit", 0), time.Second*65).Should(gbytes.Say("Skipping job configuration for check-monit"))
+		Eventually(downloadLogs("check-monit-empty", "check-monit", 0), time.Second*10).Should(gbytes.Say("Skipping job configuration for check-monit"))
 	})
 
-	It("can run a job with a monit file containing only whitespace", func() {
-		time.Sleep(60 * time.Second)
-		Eventually(downloadLogs("check-monit-whitespace", "check-monit", 0), time.Second*65).Should(gbytes.Say("Skipping job configuration for check-monit"))
-	})
+	// It("can run a job with a monit file containing only whitespace", func() {
+	// 	Eventually(downloadLogs("check-monit-whitespace", "check-monit", 0), time.Second*10).Should(gbytes.Say("Skipping job configuration for check-monit"))
+	// })
 
 	It("successfully runs redeploy in a tight loop", func() {
 		pwd, err := os.Getwd()
