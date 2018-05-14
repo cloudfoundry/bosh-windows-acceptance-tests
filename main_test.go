@@ -99,22 +99,22 @@ instance_groups:
   jobs:
   - name: check-monit
     release: {{.ReleaseName}}
+- name: check-monit-whitespace
+  instances: 1
+  stemcell: windows
+  lifecycle: errand
+  azs: [{{.AZ}}]
+  vm_type: {{.VmType}}
+  vm_extensions: [{{.VmExtensions}}]
+  networks:
+  - name: {{.Network}}
+  jobs:
+  - name: check-monit
+    release: {{.ReleaseName}}
+		properties:
+			check-monit:
+				content: "\t\n \t \n "
 `
-
-// - name: check-monit-whitespace
-//   instances: 1
-//   stemcell: windows
-//   lifecycle: errand
-//   azs: [{{.AZ}}]
-//   vm_type: {{.VmType}}
-//   vm_extensions: [{{.VmExtensions}}]
-//   networks:
-//   - name: {{.Network}}
-//   jobs:
-//   - name: check-monit
-//     release: {{.ReleaseName}}
-//     content: "\t\n \t \n "
-
 var rootDiskInstanceGroup = fmt.Sprintf(`
 - name: verify-root-disk-size
   instances: 1
