@@ -111,9 +111,9 @@ instance_groups:
   jobs:
   - name: check-monit
     release: {{.ReleaseName}}
-		properties:
-			check-monit:
-				content: "  "
+    properties:
+      check-monit:
+        content: "	 "
 `
 var rootDiskInstanceGroup = fmt.Sprintf(`
 - name: verify-root-disk-size
