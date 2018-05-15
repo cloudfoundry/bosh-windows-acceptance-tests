@@ -113,8 +113,7 @@ instance_groups:
     release: {{.ReleaseName}}
 		properties:
 			check-monit:
-				content: "							"
-
+				content: "  "
 `
 var rootDiskInstanceGroup = fmt.Sprintf(`
 - name: verify-root-disk-size
