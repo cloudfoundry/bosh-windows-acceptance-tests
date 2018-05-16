@@ -1,1 +1,1 @@
-<%= p("check_monit.content") %>
+<%= p("check-monit.content") %>
