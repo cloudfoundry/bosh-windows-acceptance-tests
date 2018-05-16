@@ -527,9 +527,9 @@ var _ = Describe("BOSH Windows", func() {
 		Eventually(downloadLogs("check-monit-empty", "check-monit", 0), time.Second*10).Should(gbytes.Say("Skipping job configuration for check-monit"))
 	})
 
-	// It("can run a job with a monit file containing only whitespace", func() {
-	// 	Eventually(downloadLogs("check-monit-whitespace", "check-monit", 0), time.Second*10).Should(gbytes.Say("Skipping job configuration for check-monit"))
-	// })
+	It("can run a job with a monit file containing only whitespace", func() {
+		Eventually(downloadLogs("check-monit-whitespace", "check-monit", 0), time.Second*10).Should(gbytes.Say("Skipping job configuration for check-monit"))
+	})
 
 	It("successfully runs redeploy in a tight loop", func() {
 		pwd, err := os.Getwd()
