@@ -524,11 +524,11 @@ var _ = Describe("BOSH Windows", func() {
 	})
 
 	It("can run a job with an empty monit file", func() {
-		Eventually(downloadLogs("check-monit-empty", "check-monit", 0), time.Second*10).Should(gbytes.Say("Skipping job configuration for check-monit"))
+		Eventually(downloadLogs("check-monit-empty", "check-monit", 0), time.Second*60).Should(gbytes.Say("60 seconds passed"))
 	})
 
 	It("can run a job with a monit file containing only whitespace", func() {
-		Eventually(downloadLogs("check-monit-whitespace", "check-monit", 0), time.Second*10).Should(gbytes.Say("Skipping job configuration for check-monit"))
+		Eventually(downloadLogs("check-monit-whitespace", "check-monit", 0), time.Second*60).Should(gbytes.Say("60 seconds passed"))
 	})
 
 	It("successfully runs redeploy in a tight loop", func() {
