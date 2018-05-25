@@ -38,6 +38,10 @@ const MbsaURL = "https://download.microsoft.com/download/8/E/1/8E16A4C7-DD28-436
 
 const redeployRetries = 10
 
+const largeVMType = "bwats_200GB_disk"
+
+var cloudConfigHasLargeVMType = false
+
 var manifestTemplate = `
 ---
 name: {{.DeploymentName}}
@@ -111,6 +115,20 @@ instance_groups:
       check-monit:
         content: "	 "
 `
+var rootDiskInstanceGroup = fmt.Sprintf(`
+- name: verify-root-disk-size
+  instances: 1
+  stemcell: windows
+  lifecycle: errand
+  azs: [{{.AZ}}]
+  vm_type: %s
+  vm_extensions: [{{.VmExtensions}}]
+  networks:
+  - name: {{.Network}}
+  jobs:
+  - name: verify-root-disk-size
+    release: {{.ReleaseName}}
+`, largeVMType)
 
 type ManifestProperties struct {
 	DeploymentName  string
@@ -187,6 +205,14 @@ func (c *Config) generateManifest(deploymentName string, stemcellVersion string,
 	}
 
 	var err error
+	cloudConfigHasLargeVMType, err = checkCloudConfigFor(fmt.Sprintf("name: %s", largeVMType))
+	if err != nil {
+		return nil, err
+	}
+
+	if cloudConfigHasLargeVMType {
+		manifestTemplate = fmt.Sprintf("%s%s", manifestTemplate, rootDiskInstanceGroup)
+	}
 
 	templ, err := template.New("").Parse(manifestTemplate)
 	if err != nil {
@@ -540,7 +566,7 @@ var _ = Describe("BOSH Windows", func() {
 	// runs we check for the presence of a registry key that is an artifact of the
 	// original 'Automatic (Delayed Start)' configuration.
 
-	It("checks system dependencies and security, auto update has turned off, currently has a Service StartType of 'Manual' and initially had a StartType of 'Delayed', password is randomized and jobs with empty or whitespace monit files work", func() {
+	It("checks system dependencies and security, auto update has turned off, currently has a Service StartType of 'Manual' and initially had a StartType of 'Delayed', password is randomized and uses entire 200 GB root disk", func() {
 		err := bosh.Run(fmt.Sprintf("-d %s run-errand --download-logs check-system --tty", deploymentName))
 		Expect(err).To(Succeed())
 	})
@@ -548,5 +574,14 @@ var _ = Describe("BOSH Windows", func() {
 	It("is fully updated", func() { // 860s
 		err := bosh.Run(fmt.Sprintf("-d %s run-errand --download-logs check-updates --tty", deploymentName))
 		Expect(err).To(Succeed())
+	})
+
+	It("uses entire 200 GB root disk", func() {
+		if cloudConfigHasLargeVMType {
+			err := bosh.Run(fmt.Sprintf("-d %s run-errand --download-logs verify-root-disk-size --tty", deploymentName))
+			Expect(err).To(Succeed())
+		} else {
+			log.Printf("Skipped because vm_type '%s' does not exist.\n", largeVMType)
+		}
 	})
 })
