@@ -331,7 +331,7 @@ copy "$LgpoDir\DomainSysvol\GPO\Machine\microsoft\windows nt\SecEdit\GptTmpl.inf
 
 function Assert-NoDiff {
   Param (
-    [string] $fileA = (Throw "first filename param required")
+    [string] $fileA = (Throw "first filename param required"),
     [string] $fileB = (Throw "second filename param required")
   )
   fc.exe /t "$fileA" "$fileB"
