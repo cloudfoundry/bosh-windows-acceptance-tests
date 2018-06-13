@@ -293,8 +293,10 @@ if ($dataPartition -ne $null) {
 echo "Verifying NTP synch works correctly"
 w32tm /query /configuration
 
+net stop w32time
 Set-Date -Date (Get-Date).AddHours(8)
 $OutOfSyncTime = Get-Date
+net start w32time
 
 $TimeSetCorrectly = $false
 
