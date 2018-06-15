@@ -492,7 +492,7 @@ var _ = Describe("BOSH Windows", func() {
 	// runs we check for the presence of a registry key that is an artifact of the
 	// original 'Automatic (Delayed Start)' configuration.
 
-	FIt("checks system dependencies and security, auto update has turned off, currently has a Service StartType of 'Manual' and initially had a StartType of 'Delayed' and password is randomized", func() {
+	It("checks system dependencies and security, auto update has turned off, currently has a Service StartType of 'Manual' and initially had a StartType of 'Delayed' and password is randomized", func() {
 		err := bosh.Run(fmt.Sprintf("-d %s run-errand --download-logs check-system --tty", deploymentName))
 		Expect(err).To(Succeed())
 	})
