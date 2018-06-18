@@ -1,8 +1,16 @@
 ﻿# Do not set ErrorActionPreference to stop as Get-Acl will error
 # if we do not have permission to read file permissions.
 
-#potential
 # Verify randomize password has run
+#potential
+$DisabledNetBIOS = $false
+$nbtstat = nbtstat.exe -n
+"results for nbtstat: $nbtstat"
+
+$nbtstat | foreach {
+    $DisabledNetBIOS = $DisabledNetBIOS -or $_ -like '*No names in cache*'
+}
+#potential
 secedit /configure /db secedit.sdb /cfg c:\var\vcap\jobs\check-system\inf\security.inf
 
 Add-Type -AssemblyName System.DirectoryServices.AccountManagement
@@ -280,14 +288,6 @@ if ( $existing -eq $null){
 #   Exit 1
 # }
 
-$DisabledNetBIOS = $false
-$nbtstat = nbtstat.exe -n
-"results for nbtstat: $nbtstat"
-
-#potential
-$nbtstat | foreach {
-    $DisabledNetBIOS = $DisabledNetBIOS -or $_ -like '*No names in cache*'
-}
 
 # Verify the Agent's start type is 'Manual'.
 #
