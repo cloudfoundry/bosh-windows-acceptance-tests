@@ -1,6 +1,19 @@
 ﻿# Do not set ErrorActionPreference to stop as Get-Acl will error
 # if we do not have permission to read file permissions.
 
+#potential
+# Verify randomize password has run
+secedit /configure /db secedit.sdb /cfg c:\var\vcap\jobs\check-system\inf\security.inf
+
+Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+$ComputerName=hostname
+$DS = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('machine',$ComputerName)
+
+if ($DS.ValidateCredentials('Administrator', 'Password123!')) {
+    Write-Error "Administrator password was not randomized"
+    Exit 1
+}
+
 # Verify LGPO
 if ($windowsVersion -Match "2012") {
   echo "Verifying that expected policies have been applied"
@@ -189,7 +202,7 @@ If ($MetadataServerAllowRules -Ne $null) {
 
 
 $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
-
+#potential
 if ($windowsVersion -Match "2012") {
   # Ensure HWC apps can get started
   Start-Process -FilePath "C:\var\vcap\jobs\check-system\bin\HWCServer.exe" -ArgumentList "9000"
@@ -271,6 +284,7 @@ $DisabledNetBIOS = $false
 $nbtstat = nbtstat.exe -n
 "results for nbtstat: $nbtstat"
 
+#potential
 $nbtstat | foreach {
     $DisabledNetBIOS = $DisabledNetBIOS -or $_ -like '*No names in cache*'
 }
@@ -315,18 +329,6 @@ if ((Get-Service wuauserv).Status -ne "Stopped") {
 $StartType = (Get-Service wuauserv).StartType
 if ($StartType -ne "Disabled") {
     Write-Host "Warning: wuauserv service StartType is not disabled: ${StartType}"
-}
-
-# Verify randomize password has run
-secedit /configure /db secedit.sdb /cfg c:\var\vcap\jobs\check-system\inf\security.inf
-
-Add-Type -AssemblyName System.DirectoryServices.AccountManagement
-$ComputerName=hostname
-$DS = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('machine',$ComputerName)
-
-if ($DS.ValidateCredentials('Administrator', 'Password123!')) {
-    Write-Error "Administrator password was not randomized"
-    Exit 1
 }
 
 $dataPartition = Get-Partition | where AccessPaths -Contains "C:\var\vcap\data\"
