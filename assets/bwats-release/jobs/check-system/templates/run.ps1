@@ -165,27 +165,6 @@ If ($MetadataServerAllowRules -Ne $null) {
 
 
 $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
-#potential
-if ($windowsVersion -Match "2012") {
-  # Ensure HWC apps can get started
-  Start-Process -FilePath "C:\var\vcap\jobs\check-system\bin\HWCServer.exe" -ArgumentList "9000"
-  $status = (Invoke-WebRequest -Uri "http://localhost:9000" -UseBasicParsing).StatusCode
-  If ($status -ne 200) {
-    Write-Error "Failed to start HWC app"
-    Exit 1
-  } else {
-    Write-Host "HWC apps can start"
-  }
-
-  $status = try { Invoke-WebRequest -Uri "http://localhost" -UseBasicParsing } catch {}
-  If ($status -ne $nil) {
-    Write-Error "IIS Web Server is not turned off"
-    Exit 1
-  } else {
-    Write-Host "IIS Web Server is turned off"
-  }
-}
-
 # Check installed features
 function Assert-IsInstalled {
   param (
@@ -362,6 +341,27 @@ if ($windowsVersion -Match "2012") {
   Assert-NoDiff "$OutputDir\user_registry.txt" "$TestDir\user_registry.txt"
   Assert-NoDiff "$OutputDir\GptTmpl.inf" "$TestDir\GptTmpl.inf"
   Assert-NoDiff "$OutputDir\audit.csv" "$TestDir\audit.csv"
+}
+
+#potential
+if ($windowsVersion -Match "2012") {
+  # Ensure HWC apps can get started
+  Start-Process -FilePath "C:\var\vcap\jobs\check-system\bin\HWCServer.exe" -ArgumentList "9000"
+  $status = (Invoke-WebRequest -Uri "http://localhost:9000" -UseBasicParsing).StatusCode
+  If ($status -ne 200) {
+    Write-Error "Failed to start HWC app"
+    Exit 1
+  } else {
+    Write-Host "HWC apps can start"
+  }
+
+  $status = try { Invoke-WebRequest -Uri "http://localhost" -UseBasicParsing } catch {}
+  If ($status -ne $nil) {
+    Write-Error "IIS Web Server is not turned off"
+    Exit 1
+  } else {
+    Write-Host "IIS Web Server is turned off"
+  }
 }
 
 Exit 0
