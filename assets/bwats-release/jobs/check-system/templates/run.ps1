@@ -271,33 +271,6 @@ if ($dataPartition -ne $null) {
     Exit 1
 }
 
-echo "Verifying NTP synch works correctly"
-w32tm /query /configuration
-
-Set-Date -Date (Get-Date).AddHours(8)
-$OutOfSyncTime = Get-Date
-
-$TimeSetCorrectly = $false
-
-for ($i=0; $i -lt 10; $i++) {
-    Sleep 1
-
-    w32tm /resync /rediscover
-    w32tm /resync
-
-    if ((Get-Date) -ge $OutOfSyncTime) {
-        Write-Error "Time not reset correctly via NTP on attempt $($i+1) of 10: $(Get-Date) greater than or equal to $OutOfSyncTime"
-    } else {
-        $TimeSetCorrectly = $true
-        break
-    }
-}
-
-if (-not $TimeSetCorrectly) {
-    Write-Error "Time not reset correctly via NTP after 10 attempts"
-    Exit 1
-}
-
 # Verify LGPO
 if ($windowsVersion -Match "2012") {
   echo "Verifying that expected policies have been applied"
@@ -341,6 +314,33 @@ if ($windowsVersion -Match "2012") {
   Assert-NoDiff "$OutputDir\user_registry.txt" "$TestDir\user_registry.txt"
   Assert-NoDiff "$OutputDir\GptTmpl.inf" "$TestDir\GptTmpl.inf"
   Assert-NoDiff "$OutputDir\audit.csv" "$TestDir\audit.csv"
+}
+
+echo "Verifying NTP synch works correctly"
+w32tm /query /configuration
+
+Set-Date -Date (Get-Date).AddHours(8)
+$OutOfSyncTime = Get-Date
+
+$TimeSetCorrectly = $false
+
+for ($i=0; $i -lt 10; $i++) {
+    Sleep 1
+
+    w32tm /resync /rediscover
+    w32tm /resync
+
+    if ((Get-Date) -ge $OutOfSyncTime) {
+        Write-Error "Time not reset correctly via NTP on attempt $($i+1) of 10: $(Get-Date) greater than or equal to $OutOfSyncTime"
+    } else {
+        $TimeSetCorrectly = $true
+        break
+    }
+}
+
+if (-not $TimeSetCorrectly) {
+    Write-Error "Time not reset correctly via NTP after 10 attempts"
+    Exit 1
 }
 
 #potential
