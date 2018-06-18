@@ -5,9 +5,10 @@
 
 
 # Verify LGPO
+$windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
 function Test-LGPO {
   if ($windowsVersion -Match "2012") {
-    echo "Verifying that expected policies have been applied"
+    Write-Host "Verifying that expected policies have been applied"
 
     lgpo /b $PSScriptRoot
     $LgpoDir = "$PSScriptRoot\" + (Get-ChildItem $PSScriptRoot -Directory | ?{ $_.Name -match "{*}" } | select -First 1).Name
@@ -215,7 +216,6 @@ If ($MetadataServerAllowRules -Ne $null) {
 }
 
 
-$windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
 # Check installed features
 function Assert-IsInstalled {
   param (
