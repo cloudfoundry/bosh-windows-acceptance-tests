@@ -248,6 +248,9 @@ if ($windowsVersion -Match "2012") {
   Assert-IsNotInstalled "Windows-Defender-Features"
 }
 
+# Verify LGPO
+Verify-LGPO
+
 #Ensure provisioner user is deleted
 $adsi = [ADSI]"WinNT://$env:COMPUTERNAME"
 $user = "Provisioner"
@@ -258,9 +261,6 @@ if ( $existing -eq $null){
   Write-Error "$user user still exists. Please run 'Remove-Account -User $user'"
   Exit 1
 }
-
-# Verify LGPO
-Verify-LGPO
 
 # We have a chore (https://www.pivotaltracker.com/story/show/149592041)
 # to ensure the Provisioner user's home directory is deleted when the user
