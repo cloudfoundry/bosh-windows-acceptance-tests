@@ -300,6 +300,9 @@ if ((Get-ItemProperty  $RegPath).DelayedAutostart -ne 1) {
     Exit 1
 }
 
+# Verify LGPO
+Verify-LGPO
+
 $ServicesPipeTimeoutPath = "HKLM:\SYSTEM\CurrentControlSet\Control"
 if ((Get-ItemProperty  $ServicesPipeTimeoutPath).ServicesPipeTimeout -ne 60000) {
     Write-Error "Error: expected ServicesPipeTimeout to equal 60s"
@@ -317,9 +320,6 @@ $StartType = (Get-Service wuauserv).StartType
 if ($StartType -ne "Disabled") {
     Write-Host "Warning: wuauserv service StartType is not disabled: ${StartType}"
 }
-
-# Verify LGPO
-Verify-LGPO
 
 # Verify randomize password has run
 secedit /configure /db secedit.sdb /cfg c:\var\vcap\jobs\check-system\inf\security.inf
