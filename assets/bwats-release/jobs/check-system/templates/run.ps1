@@ -1,6 +1,7 @@
 ﻿# Do not set ErrorActionPreference to stop as Get-Acl will error
 # if we do not have permission to read file permissions.
 
+$windowsVersion = [environment]::OSVersion.Version.Major
 # Verify LGPO
 if ($windowsVersion -Match "2012") {
   echo "Verifying that expected policies have been applied"
@@ -83,7 +84,6 @@ $expectedacls = New-Object System.Collections.ArrayList
 # for 2016, for some reason every file in C:\Program Files\OpenSSH
 # ends up with "APPLICATION PACKAGE AUTHORITY\ALL RESTRICTED APPLICATION PACKAGES,Allow".
 # adding this to unblock 2016 pipeline
-$windowsVersion = [environment]::OSVersion.Version.Major
 if ($windowsVersion -ge "10") {
   "Adding 2016 ACLs"
   $expectedacls.Add("APPLICATION PACKAGE AUTHORITY\ALL RESTRICTED APPLICATION PACKAGES,Allow")
