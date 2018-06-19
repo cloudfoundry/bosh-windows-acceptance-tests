@@ -336,6 +336,9 @@ if ($dataPartition -ne $null) {
     Exit 1
 }
 
+# Verify LGPO
+Verify-LGPO
+
 echo "Verifying NTP synch works correctly"
 w32tm /query /configuration
 
@@ -363,7 +366,5 @@ if (-not $TimeSetCorrectly) {
     Exit 1
 }
 
-# Verify LGPO
-Verify-LGPO
 
 Exit 0
