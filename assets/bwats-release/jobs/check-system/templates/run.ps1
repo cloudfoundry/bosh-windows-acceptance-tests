@@ -276,6 +276,9 @@ $nbtstat | foreach {
     $DisabledNetBIOS = $DisabledNetBIOS -or $_ -like '*No names in cache*'
 }
 
+# Verify LGPO
+Verify-LGPO
+
 # Verify the Agent's start type is 'Manual'.
 #
 $agent = Get-Service | Where { $_.Name -eq 'bosh-agent' }
@@ -299,9 +302,6 @@ if ((Get-ItemProperty  $RegPath).DelayedAutostart -ne 1) {
     Write-Error "verify-agent-start-type: Expected DelayedAutostart to equal 1"
     Exit 1
 }
-
-# Verify LGPO
-Verify-LGPO
 
 $ServicesPipeTimeoutPath = "HKLM:\SYSTEM\CurrentControlSet\Control"
 if ((Get-ItemProperty  $ServicesPipeTimeoutPath).ServicesPipeTimeout -ne 60000) {
