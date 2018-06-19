@@ -76,7 +76,7 @@ instance_groups:
     release: windows-utilities
     properties:
       set_password:
-        password: !abcd1234
+        password: Password123!
   - name: simple-job
     release: {{.ReleaseName}}
   - name: check-system

@@ -51,29 +51,6 @@ function Test-LGPO {
   }
 }
 
-Test-LGPO
-Test-LGPO
-
-#potential
-$DisabledNetBIOS = $false
-$nbtstat = nbtstat.exe -n
-"results for nbtstat: $nbtstat"
-
-$nbtstat | foreach {
-    $DisabledNetBIOS = $DisabledNetBIOS -or $_ -like '*No names in cache*'
-}
-#potential
-secedit /configure /db secedit.sdb /cfg c:\var\vcap\jobs\check-system\inf\security.inf
-
-Add-Type -AssemblyName System.DirectoryServices.AccountManagement
-$ComputerName=hostname
-$DS = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('machine',$ComputerName)
-
-if ($DS.ValidateCredentials('Administrator', 'Password123!')) {
-    Write-Error "Administrator password was not randomized"
-    Exit 1
-}
-
 # Check for dependencies
 
 $BOSH_BIN="C:\\var\\vcap\\bosh\\bin"
@@ -349,26 +326,6 @@ if (-not $TimeSetCorrectly) {
     Exit 1
 }
 
-#potential
-if ($windowsVersion -Match "2012") {
-  # Ensure HWC apps can get started
-  Start-Process -FilePath "C:\var\vcap\jobs\check-system\bin\HWCServer.exe" -ArgumentList "9000"
-  $status = (Invoke-WebRequest -Uri "http://localhost:9000" -UseBasicParsing).StatusCode
-  If ($status -ne 200) {
-    Write-Error "Failed to start HWC app"
-    Exit 1
-  } else {
-    Write-Host "HWC apps can start"
-  }
-
-  $status = try { Invoke-WebRequest -Uri "http://localhost" -UseBasicParsing } catch {}
-  If ($status -ne $nil) {
-    Write-Error "IIS Web Server is not turned off"
-    Exit 1
-  } else {
-    Write-Host "IIS Web Server is turned off"
-  }
-
-}
+Test-LGPO
 
 Exit 0
