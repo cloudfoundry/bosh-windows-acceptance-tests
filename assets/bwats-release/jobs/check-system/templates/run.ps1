@@ -129,6 +129,27 @@ if ($errCount -ne 0) {
 
 # Check Services
 
+
+# Check WinRM
+If ( (Get-Service WinRM).Status -ne "Stopped") {
+  $msg = "WinRM is not Stopped. It is {0}" -f $(Get-Service WinRM).Status
+  Write-Error $msg
+  Exit 1
+}
+
+# Check sshd startup type
+If ( (Get-Service sshd).StartType -ne "Disabled") {
+  $msg = "sshd is not disabled. It is {0}" -f $(Get-Service sshd).StartType
+  Write-Error $msg
+  Exit 1
+}
+
+# Check ssh-agent startup type
+If ( (Get-Service ssh-agent).StartType -ne "Disabled") {
+  $msg = "ssh-agent is not disabled. It is {0}" -f $(Get-Service ssh-agent).StartType
+  Write-Error $msg
+  Exit 1
+}
 # Check firewall rules
 function get-firewall {
   param([string] $profile)
@@ -305,27 +326,6 @@ if (-not $TimeSetCorrectly) {
     Exit 1
 }
 
-
-# Check WinRM
-If ( (Get-Service WinRM).Status -ne "Stopped") {
-  $msg = "WinRM is not Stopped. It is {0}" -f $(Get-Service WinRM).Status
-  Write-Error $msg
-  Exit 1
-}
-
-# Check sshd startup type
-If ( (Get-Service sshd).StartType -ne "Disabled") {
-  $msg = "sshd is not disabled. It is {0}" -f $(Get-Service sshd).StartType
-  Write-Error $msg
-  Exit 1
-}
-
-# Check ssh-agent startup type
-If ( (Get-Service ssh-agent).StartType -ne "Disabled") {
-  $msg = "ssh-agent is not disabled. It is {0}" -f $(Get-Service ssh-agent).StartType
-  Write-Error $msg
-  Exit 1
-}
 
 Test-LGPO
 Exit 0
