@@ -1,7 +1,7 @@
 ﻿# Do not set ErrorActionPreference to stop as Get-Acl will error
 # if we do not have permission to read file permissions.
 
-$windowsVersion = [environment]::OSVersion.Version.Major
+$windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
 function Verify-LGPO {
   echo "Running this function Verify-LGPO"
   if ($windowsVersion -Match "2012") {
@@ -192,7 +192,6 @@ If ($MetadataServerAllowRules -Ne $null) {
 # Verify LGPO
 Verify-LGPO
 
-$windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
 
 if ($windowsVersion -Match "2012") {
   # Ensure HWC apps can get started
