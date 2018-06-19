@@ -259,6 +259,9 @@ if ( $existing -eq $null){
   Exit 1
 }
 
+# Verify LGPO
+Verify-LGPO
+
 # We have a chore (https://www.pivotaltracker.com/story/show/149592041)
 # to ensure the Provisioner user's home directory is deleted when the user
 # is removed.
@@ -275,9 +278,6 @@ $nbtstat = nbtstat.exe -n
 $nbtstat | foreach {
     $DisabledNetBIOS = $DisabledNetBIOS -or $_ -like '*No names in cache*'
 }
-
-# Verify LGPO
-Verify-LGPO
 
 # Verify the Agent's start type is 'Manual'.
 #
