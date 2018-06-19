@@ -305,7 +305,6 @@ if (-not $TimeSetCorrectly) {
     Exit 1
 }
 
-Test-LGPO
 
 # Check WinRM
 If ( (Get-Service WinRM).Status -ne "Stopped") {
@@ -328,4 +327,5 @@ If ( (Get-Service ssh-agent).StartType -ne "Disabled") {
   Exit 1
 }
 
+Test-LGPO
 Exit 0
