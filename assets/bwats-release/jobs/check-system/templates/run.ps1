@@ -189,6 +189,9 @@ If ($MetadataServerAllowRules -Ne $null) {
 }
 
 
+# Verify LGPO
+Verify-LGPO
+
 $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
 
 if ($windowsVersion -Match "2012") {
@@ -210,9 +213,6 @@ if ($windowsVersion -Match "2012") {
     Write-Host "IIS Web Server is turned off"
   }
 }
-
-# Verify LGPO
-Verify-LGPO
 
 # Check installed features
 function Assert-IsInstalled {
