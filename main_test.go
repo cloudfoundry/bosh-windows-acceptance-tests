@@ -45,7 +45,8 @@ name: {{.DeploymentName}}
 releases:
 - name: {{.ReleaseName}}
   version: '{{.ReleaseVersion}}'
-
+- name: windows-utilities
+  version: latest
 stemcells:
 - alias: windows
   os: {{.StemcellOs}}
@@ -67,6 +68,15 @@ instance_groups:
   networks:
   - name: {{.Network}}
   jobs:
+  - name: enable_rdp
+    release: windows-utilities
+  - name: enable_ssh
+    release: windows-utilities
+  - name: set_password
+    release: windows-utilities
+    properties:
+      set_password:
+        password: !abcd1234
   - name: simple-job
     release: {{.ReleaseName}}
   - name: check-system
