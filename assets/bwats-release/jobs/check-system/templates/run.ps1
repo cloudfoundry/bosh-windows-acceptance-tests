@@ -211,6 +211,9 @@ if ($windowsVersion -Match "2012") {
   }
 }
 
+# Verify LGPO
+Verify-LGPO
+
 # Check installed features
 function Assert-IsInstalled {
   param (
@@ -247,9 +250,6 @@ if ($windowsVersion -Match "2012") {
   Assert-IsInstalled "Containers"
   Assert-IsNotInstalled "Windows-Defender-Features"
 }
-
-# Verify LGPO
-Verify-LGPO
 
 #Ensure provisioner user is deleted
 $adsi = [ADSI]"WinNT://$env:COMPUTERNAME"
