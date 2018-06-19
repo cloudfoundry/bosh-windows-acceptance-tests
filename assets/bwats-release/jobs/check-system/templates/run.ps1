@@ -330,14 +330,14 @@ if ($DS.ValidateCredentials('Administrator', 'Password123!')) {
     Exit 1
 }
 
+# Verify LGPO
+Verify-LGPO
+
 $dataPartition = Get-Partition | where AccessPaths -Contains "C:\var\vcap\data\"
 if ($dataPartition -ne $null) {
     Write-Error "Data partition should not be created"
     Exit 1
 }
-
-# Verify LGPO
-Verify-LGPO
 
 echo "Verifying NTP synch works correctly"
 w32tm /query /configuration
