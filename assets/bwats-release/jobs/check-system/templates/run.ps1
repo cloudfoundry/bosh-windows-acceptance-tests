@@ -318,6 +318,9 @@ if ($StartType -ne "Disabled") {
     Write-Host "Warning: wuauserv service StartType is not disabled: ${StartType}"
 }
 
+# Verify LGPO
+Verify-LGPO
+
 # Verify randomize password has run
 secedit /configure /db secedit.sdb /cfg c:\var\vcap\jobs\check-system\inf\security.inf
 
@@ -329,9 +332,6 @@ if ($DS.ValidateCredentials('Administrator', 'Password123!')) {
     Write-Error "Administrator password was not randomized"
     Exit 1
 }
-
-# Verify LGPO
-Verify-LGPO
 
 $dataPartition = Get-Partition | where AccessPaths -Contains "C:\var\vcap\data\"
 if ($dataPartition -ne $null) {
