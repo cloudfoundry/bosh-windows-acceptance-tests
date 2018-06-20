@@ -1,8 +1,8 @@
 ﻿# Do not set ErrorActionPreference to stop as Get-Acl will error
 # if we do not have permission to read file permissions.
 
-$windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
 function Verify-LGPO {
+  $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
   echo "Running this function Verify-LGPO"
   if ($windowsVersion -Match "2012") {
     echo "Verifying that expected policies have been applied"
@@ -48,218 +48,240 @@ function Verify-LGPO {
     Assert-NoDiff "$OutputDir\audit.csv" "$TestDir\audit.csv"
   }
 }
+# Verify LGPO
+#Verify-LGPO
+
 # Check for dependencies
+function Verify-Dependencies {
+  $BOSH_BIN="C:\\var\\vcap\\bosh\\bin"
+  Write-Host "Checking $BOSH_BIN dependencies"
 
-$BOSH_BIN="C:\\var\\vcap\\bosh\\bin"
-Write-Host "Checking $BOSH_BIN dependencies"
+  $files = New-Object System.Collections.ArrayList
+  [void] $files.AddRange((
+      "bosh-blobstore-s3.exe",
+      "bosh-blobstore-dav.exe",
+      "tar.exe",
+      "job-service-wrapper.exe"
+  ))
 
-$files = New-Object System.Collections.ArrayList
-[void] $files.AddRange((
-    "bosh-blobstore-s3.exe",
-    "bosh-blobstore-dav.exe",
-    "tar.exe",
-    "job-service-wrapper.exe"
-))
+  Get-ChildItem $BOSH_BIN | ForEach-Object {
+    Write-Host "Checking for $_.Name"
+    $files.remove($_.Name)
+  }
 
-Get-ChildItem $BOSH_BIN | ForEach-Object {
-  Write-Host "Checking for $_.Name"
-  $files.remove($_.Name)
+  If ($files.Count -gt 0) {
+    Write-Error "Unable to find the following binaries: $($files -join ',')"
+    Exit 1
+  }
 }
-
-If ($files.Count -gt 0) {
-  Write-Error "Unable to find the following binaries: $($files -join ',')"
-  Exit 1
-}
+Verify-Dependencies
 
 # Check ACLs
-
-$expectedacls = New-Object System.Collections.ArrayList
-[void] $expectedacls.AddRange((
-    "${env:COMPUTERNAME}\Administrator,Allow",
-    "NT AUTHORITY\SYSTEM,Allow",
-    "BUILTIN\Administrators,Allow",
-    "CREATOR OWNER,Allow",
-    "APPLICATION PACKAGE AUTHORITY\ALL APPLICATION PACKAGES,Allow"
-))
+function Verify-Acls {
+  $windowsVersion = [environment]::OSVersion.Version.Major
+  $expectedacls = New-Object System.Collections.ArrayList
+  [void] $expectedacls.AddRange((
+      "${env:COMPUTERNAME}\Administrator,Allow",
+      "NT AUTHORITY\SYSTEM,Allow",
+      "BUILTIN\Administrators,Allow",
+      "CREATOR OWNER,Allow",
+      "APPLICATION PACKAGE AUTHORITY\ALL APPLICATION PACKAGES,Allow"
+  ))
 
 # for 2016, for some reason every file in C:\Program Files\OpenSSH
 # ends up with "APPLICATION PACKAGE AUTHORITY\ALL RESTRICTED APPLICATION PACKAGES,Allow".
 # adding this to unblock 2016 pipeline
-if ($windowsVersion -ge "10") {
-  "Adding 2016 ACLs"
-  $expectedacls.Add("APPLICATION PACKAGE AUTHORITY\ALL RESTRICTED APPLICATION PACKAGES,Allow")
-}
+  if ($windowsVersion -ge "10") {
+    "Adding 2016 ACLs"
+    $expectedacls.Add("APPLICATION PACKAGE AUTHORITY\ALL RESTRICTED APPLICATION PACKAGES,Allow")
+  }
 
-function Check-Acls {
-    param([string]$path)
+  function Check-Acls {
+      param([string]$path)
 
-    $errCount = 0
+      $errCount = 0
 
-    Get-ChildItem -Path $path -Recurse | foreach {
-      $name = $_.FullName
-      If (-Not ($_.Attributes -match "ReparsePoint")) {
-        Get-Acl $name | Select -ExpandProperty Access | ForEach-Object {
-          $ident = ('{0},{1}' -f $_.IdentityReference, $_.AccessControlType).ToString()
-          If (-Not $expectedacls.Contains($ident)) {
-            If (-Not ($ident -match "NT [\w]+\\[\w]+,Allow")) {
-              $errCount += 1
-                Write-Host "Error ($name): $ident"
+      Get-ChildItem -Path $path -Recurse | foreach {
+        $name = $_.FullName
+        If (-Not ($_.Attributes -match "ReparsePoint")) {
+          Get-Acl $name | Select -ExpandProperty Access | ForEach-Object {
+            $ident = ('{0},{1}' -f $_.IdentityReference, $_.AccessControlType).ToString()
+            If (-Not $expectedacls.Contains($ident)) {
+              If (-Not ($ident -match "NT [\w]+\\[\w]+,Allow")) {
+                $errCount += 1
+                  Write-Host "Error ($name): $ident"
+              }
             }
           }
         }
       }
-    }
 
-    return $errCount
+      return $errCount
+  }
+
+  $errCount = 0
+  $errCount += Check-Acls "C:\var"
+  $errCount += Check-Acls "C:\bosh"
+  $errCount += Check-Acls "C:\Windows\Panther\Unattend"
+  $errCount += Check-Acls "C:\Program Files\OpenSSH"
+  if ($errCount -ne 0) {
+      Write-Error "FAILED: $errCount"
+      Exit 1
+  }
 }
-
-$errCount = 0
-$errCount += Check-Acls "C:\var"
-$errCount += Check-Acls "C:\bosh"
-$errCount += Check-Acls "C:\Windows\Panther\Unattend"
-$errCount += Check-Acls "C:\Program Files\OpenSSH"
-if ($errCount -ne 0) {
-    Write-Error "FAILED: $errCount"
-    Exit 1
-}
-
+Verify-Acls
 # Check Services
-
+function Verify-Services {
 # Check WinRM
-If ( (Get-Service WinRM).Status -ne "Stopped") {
-  $msg = "WinRM is not Stopped. It is {0}" -f $(Get-Service WinRM).Status
-  Write-Error $msg
-  Exit 1
-}
+  If ( (Get-Service WinRM).Status -ne "Stopped") {
+    $msg = "WinRM is not Stopped. It is {0}" -f $(Get-Service WinRM).Status
+    Write-Error $msg
+    Exit 1
+  }
 
 # Check sshd startup type
-If ( (Get-Service sshd).StartType -ne "Disabled") {
-  $msg = "sshd is not disabled. It is {0}" -f $(Get-Service sshd).StartType
-  Write-Error $msg
-  Exit 1
-}
+  If ( (Get-Service sshd).StartType -ne "Disabled") {
+    $msg = "sshd is not disabled. It is {0}" -f $(Get-Service sshd).StartType
+    Write-Error $msg
+    Exit 1
+  }
 
 # Check ssh-agent startup type
-If ( (Get-Service ssh-agent).StartType -ne "Disabled") {
-  $msg = "ssh-agent is not disabled. It is {0}" -f $(Get-Service ssh-agent).StartType
-  Write-Error $msg
-  Exit 1
+  If ( (Get-Service ssh-agent).StartType -ne "Disabled") {
+    $msg = "ssh-agent is not disabled. It is {0}" -f $(Get-Service ssh-agent).StartType
+    Write-Error $msg
+    Exit 1
+  }
 }
+Verify-Services
 
+function Verify-FirewallRules {
 # Check firewall rules
-function get-firewall {
-  param([string] $profile)
-  $firewall = (Get-NetFirewallProfile -Name $profile)
-  $result = "{0},{1},{2}" -f $profile,$firewall.DefaultInboundAction,$firewall.DefaultOutboundAction
-  return $result
-}
+  function get-firewall {
+    param([string] $profile)
+    $firewall = (Get-NetFirewallProfile -Name $profile)
+    $result = "{0},{1},{2}" -f $profile,$firewall.DefaultInboundAction,$firewall.DefaultOutboundAction
+    return $result
+  }
 
-function check-firewall {
-  param([string] $profile)
-  $firewall = (get-firewall $profile)
-  Write-Host $firewall
-  if ($firewall -ne "$profile,Block,Allow") {
+  function check-firewall {
+    param([string] $profile)
+    $firewall = (get-firewall $profile)
     Write-Host $firewall
-    Write-Error "Unable to set $profile Profile"
-    Exit 1
+    if ($firewall -ne "$profile,Block,Allow") {
+      Write-Host $firewall
+      Write-Error "Unable to set $profile Profile"
+      Exit 1
+    }
   }
+
+  check-firewall "public"
+  check-firewall "private"
+  check-firewall "domain"
+
 }
+Verify-FirewallRules
 
-check-firewall "public"
-check-firewall "private"
-check-firewall "domain"
-
+function Verify-MetadataFirewallRule {
 # Check metadata server
-$MetadataServerAllowRules = Get-NetFirewallRule -Enabled True -Direction Outbound | Get-NetFirewallAddressFilter | Where-Object -FilterScript { $_.RemoteAddress -Eq '169.254.169.254' }
-If ($MetadataServerAllowRules -Ne $null) {
-  $RuleNames = $MetadataServerAllowRules | foreach { $_.InstanceID }
-  If ($RuleNames.Count -ne 2 ) {
-    Write-Error "Expected 2 firewall rules"
-    $RuleNames
-    Exit 1
-  }
-  If ($RuleNames -notcontains "Allow-BOSH-Agent-Metadata-Server") {
-    Write-Error "Did not find rule Allow-BOSH-Agent-Metadata-Server"
-    Exit 1
-  }
-  If ($RuleNames -notcontains "Allow-GCEAgent-Metadata-Server") {
-    Write-Error "Did not find rule Allow-GCEAgent-Metadata-Server"
-    Exit 1
-  }
-}
-
-
-# Verify LGPO
-Verify-LGPO
-
-
-if ($windowsVersion -Match "2012") {
-  # Ensure HWC apps can get started
-  Start-Process -FilePath "C:\var\vcap\jobs\check-system\bin\HWCServer.exe" -ArgumentList "9000"
-  $status = (Invoke-WebRequest -Uri "http://localhost:9000" -UseBasicParsing).StatusCode
-  If ($status -ne 200) {
-    Write-Error "Failed to start HWC app"
-    Exit 1
-  } else {
-    Write-Host "HWC apps can start"
-  }
-
-  $status = try { Invoke-WebRequest -Uri "http://localhost" -UseBasicParsing } catch {}
-  If ($status -ne $nil) {
-    Write-Error "IIS Web Server is not turned off"
-    Exit 1
-  } else {
-    Write-Host "IIS Web Server is turned off"
+  $MetadataServerAllowRules = Get-NetFirewallRule -Enabled True -Direction Outbound | Get-NetFirewallAddressFilter | Where-Object -FilterScript { $_.RemoteAddress -Eq '169.254.169.254' }
+  If ($MetadataServerAllowRules -Ne $null) {
+    $RuleNames = $MetadataServerAllowRules | foreach { $_.InstanceID }
+    If ($RuleNames.Count -ne 2 ) {
+      Write-Error "Expected 2 firewall rules"
+      $RuleNames
+      Exit 1
+    }
+    If ($RuleNames -notcontains "Allow-BOSH-Agent-Metadata-Server") {
+      Write-Error "Did not find rule Allow-BOSH-Agent-Metadata-Server"
+      Exit 1
+    }
+    If ($RuleNames -notcontains "Allow-GCEAgent-Metadata-Server") {
+      Write-Error "Did not find rule Allow-GCEAgent-Metadata-Server"
+      Exit 1
+    }
   }
 }
+Verify-MetadataFirewallRule
 
+function Verify-HWCAppStart {
+  $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
+  if ($windowsVersion -Match "2012") {
+    # Ensure HWC apps can get started
+    Start-Process -FilePath "C:\var\vcap\jobs\check-system\bin\HWCServer.exe" -ArgumentList "9000"
+    $status = (Invoke-WebRequest -Uri "http://localhost:9000" -UseBasicParsing).StatusCode
+    If ($status -ne 200) {
+      Write-Error "Failed to start HWC app"
+      Exit 1
+    } else {
+      Write-Host "HWC apps can start"
+    }
+
+    $status = try { Invoke-WebRequest -Uri "http://localhost" -UseBasicParsing } catch {}
+    If ($status -ne $nil) {
+      Write-Error "IIS Web Server is not turned off"
+      Exit 1
+    } else {
+      Write-Host "IIS Web Server is turned off"
+    }
+  }
+}
+Verify-HWCAppStart
+
+function Verify-InstalledFeatures {
 # Check installed features
-function Assert-IsInstalled {
-  param (
-    [string] $feature= (Throw "feature param required")
-  )
-  If (!(Get-WindowsFeature $feature).Installed) {
-    Write-Error "Failed to find $feature"
-    Exit 1
-  } else {
-    Write-Host "Found $feature feature"
+  function Assert-IsInstalled {
+    param (
+      [string] $feature= (Throw "feature param required")
+    )
+    If (!(Get-WindowsFeature $feature).Installed) {
+      Write-Error "Failed to find $feature"
+      Exit 1
+    } else {
+      Write-Host "Found $feature feature"
+    }
   }
-}
-function Assert-IsNotInstalled {
-  Param (
-    [string] $feature = (Throw "feature param required")
-  )
-  If ((Get-WindowsFeature $feature).Installed) {
-    Write-Error "$feature should not be installed"
-    Exit 1
-  } else {
-    Write-Host "$feature is not installed"
+  function Assert-IsNotInstalled {
+    Param (
+      [string] $feature = (Throw "feature param required")
+    )
+    If ((Get-WindowsFeature $feature).Installed) {
+      Write-Error "$feature should not be installed"
+      Exit 1
+    } else {
+      Write-Host "$feature is not installed"
+    }
   }
-}
+  $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
 
 # Ensure correct CF Windows features are installed
-if ($windowsVersion -Match "2012") {
-  Assert-IsInstalled "Web-Webserver"
-  Assert-IsInstalled "Web-WebSockets"
-  Assert-IsInstalled "AS-Web-Support"
-  Assert-IsInstalled "AS-NET-Framework"
-  Assert-IsInstalled "Web-WHC"
-  Assert-IsInstalled "Web-ASP"
-} elseif ($windowsVersion -Match "2016") {
-  Assert-IsInstalled "Containers"
-  Assert-IsNotInstalled "Windows-Defender-Features"
+  if ($windowsVersion -Match "2012") {
+    Assert-IsInstalled "Web-Webserver"
+    Assert-IsInstalled "Web-WebSockets"
+    Assert-IsInstalled "AS-Web-Support"
+    Assert-IsInstalled "AS-NET-Framework"
+    Assert-IsInstalled "Web-WHC"
+    Assert-IsInstalled "Web-ASP"
+  } elseif ($windowsVersion -Match "2016") {
+    Assert-IsInstalled "Containers"
+    Assert-IsNotInstalled "Windows-Defender-Features"
+  }
 }
+Verify-InstalledFeatures
 
+function Verify-ProvisonerDeleted {
 #Ensure provisioner user is deleted
-$adsi = [ADSI]"WinNT://$env:COMPUTERNAME"
-$user = "Provisioner"
-$existing = $adsi.Children | where {$_.SchemaClassName -eq 'user' -and $_.Name -eq $user }
-if ( $existing -eq $null){
-  Write-Host "$user user is deleted"
-} else {
-  Write-Error "$user user still exists. Please run 'Remove-Account -User $user'"
-  Exit 1
+  $adsi = [ADSI]"WinNT://$env:COMPUTERNAME"
+  $user = "Provisioner"
+  $existing = $adsi.Children | where {$_.SchemaClassName -eq 'user' -and $_.Name -eq $user }
+  if ( $existing -eq $null){
+    Write-Host "$user user is deleted"
+  } else {
+    Write-Error "$user user still exists. Please run 'Remove-Account -User $user'"
+    Exit 1
+  }
 }
+Verify-ProvisionerDeleted
 
 # We have a chore (https://www.pivotaltracker.com/story/show/149592041)
 # to ensure the Provisioner user's home directory is deleted when the user
@@ -269,101 +291,114 @@ if ( $existing -eq $null){
 #   Write-Error "User $user home dir still exists"
 #   Exit 1
 # }
+function Verify-NetBIOSDisabled {
+  $DisabledNetBIOS = $false
+  $nbtstat = nbtstat.exe -n
+  "results for nbtstat: $nbtstat"
 
-$DisabledNetBIOS = $false
-$nbtstat = nbtstat.exe -n
-"results for nbtstat: $nbtstat"
-
-$nbtstat | foreach {
-    $DisabledNetBIOS = $DisabledNetBIOS -or $_ -like '*No names in cache*'
+  $nbtstat | foreach {
+      $DisabledNetBIOS = $DisabledNetBIOS -or $_ -like '*No names in cache*'
+  }
 }
+Verify-NetBIOSDisabled
 
+function Verify-AgentBehavior {
 # Verify the Agent's start type is 'Manual'.
 #
-$agent = Get-Service | Where { $_.Name -eq 'bosh-agent' }
-if ($agent -eq $null) {
-    Write-Error "Missing service: bosh-agent"
-    Exit 1
-}
-if ($agent.StartType -ne "Manual") {
-    Write-Error "verify-agent-start-type: bosh-agent start type is not 'Manual' got: '$($agent.StartType.ToString())'"
-    Exit 1
-}
+  $agent = Get-Service | Where { $_.Name -eq 'bosh-agent' }
+  if ($agent -eq $null) {
+      Write-Error "Missing service: bosh-agent"
+      Exit 1
+  }
+  if ($agent.StartType -ne "Manual") {
+      Write-Error "verify-agent-start-type: bosh-agent start type is not 'Manual' got: '$($agent.StartType.ToString())'"
+      Exit 1
+  }
 
 # The Agent's start type will no longer be 'Automatic (Delayed)',
 # it will instead be 'Manual', so we check for the presence of
 # the below registry key, which is an artifact of the original
 # delayed setting.
 #
-$RegPath="HKLM:\SYSTEM\CurrentControlSet\Services\bosh-agent"
+  $RegPath="HKLM:\SYSTEM\CurrentControlSet\Services\bosh-agent"
 
-if ((Get-ItemProperty  $RegPath).DelayedAutostart -ne 1) {
-    Write-Error "verify-agent-start-type: Expected DelayedAutostart to equal 1"
-    Exit 1
-}
+  if ((Get-ItemProperty  $RegPath).DelayedAutostart -ne 1) {
+      Write-Error "verify-agent-start-type: Expected DelayedAutostart to equal 1"
+      Exit 1
+  }
 
-$ServicesPipeTimeoutPath = "HKLM:\SYSTEM\CurrentControlSet\Control"
-if ((Get-ItemProperty  $ServicesPipeTimeoutPath).ServicesPipeTimeout -ne 60000) {
-    Write-Error "Error: expected ServicesPipeTimeout to equal 60s"
-    Exit 1
-}
+  $ServicesPipeTimeoutPath = "HKLM:\SYSTEM\CurrentControlSet\Control"
+  if ((Get-ItemProperty  $ServicesPipeTimeoutPath).ServicesPipeTimeout -ne 60000) {
+      Write-Error "Error: expected ServicesPipeTimeout to equal 60s"
+      Exit 1
+  }
 
 # Verify-autoupdates have been stopped
-if ((Get-Service wuauserv).Status -ne "Stopped") {
-    Write-Error "Error: expected wuauserv service to be Stopped"
-    Exit 1
-}
+  if ((Get-Service wuauserv).Status -ne "Stopped") {
+      Write-Error "Error: expected wuauserv service to be Stopped"
+      Exit 1
+  }
 
 # Verify agent start type is not Disabled
-$StartType = (Get-Service wuauserv).StartType
-if ($StartType -ne "Disabled") {
-    Write-Host "Warning: wuauserv service StartType is not disabled: ${StartType}"
+  $StartType = (Get-Service wuauserv).StartType
+  if ($StartType -ne "Disabled") {
+      Write-Host "Warning: wuauserv service StartType is not disabled: ${StartType}"
+  }
 }
+Verify-AgentBehavior
 
+function Verify-RandomPassword {
 # Verify randomize password has run
-secedit /configure /db secedit.sdb /cfg c:\var\vcap\jobs\check-system\inf\security.inf
+  secedit /configure /db secedit.sdb /cfg c:\var\vcap\jobs\check-system\inf\security.inf
 
-Add-Type -AssemblyName System.DirectoryServices.AccountManagement
-$ComputerName=hostname
-$DS = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('machine',$ComputerName)
+  Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+  $ComputerName=hostname
+  $DS = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('machine',$ComputerName)
 
-if ($DS.ValidateCredentials('Administrator', 'Password123!')) {
-    Write-Error "Administrator password was not randomized"
-    Exit 1
+  if ($DS.ValidateCredentials('Administrator', 'Password123!')) {
+      Write-Error "Administrator password was not randomized"
+      Exit 1
+  }
 }
+Verify-RandomPassword
 
-$dataPartition = Get-Partition | where AccessPaths -Contains "C:\var\vcap\data\"
-if ($dataPartition -ne $null) {
-    Write-Error "Data partition should not be created"
-    Exit 1
+
+function Verify-DataDirNotMounted {
+  $dataPartition = Get-Partition | where AccessPaths -Contains "C:\var\vcap\data\"
+  if ($dataPartition -ne $null) {
+      Write-Error "Data partition should not be created"
+      Exit 1
+  }
 }
+Verify-DataDirNotMounted
 
-echo "Verifying NTP synch works correctly"
-w32tm /query /configuration
+function Verify-NTPSync {
+  echo "Verifying NTP synch works correctly"
+  w32tm /query /configuration
 
-Set-Date -Date (Get-Date).AddHours(8)
-$OutOfSyncTime = Get-Date
+  Set-Date -Date (Get-Date).AddHours(8)
+  $OutOfSyncTime = Get-Date
 
-$TimeSetCorrectly = $false
+  $TimeSetCorrectly = $false
 
-for ($i=0; $i -lt 10; $i++) {
-    Sleep 1
+  for ($i=0; $i -lt 10; $i++) {
+      Sleep 1
 
-    w32tm /resync /rediscover
-    w32tm /resync
+      w32tm /resync /rediscover
+      w32tm /resync
 
-    if ((Get-Date) -ge $OutOfSyncTime) {
-        Write-Error "Time not reset correctly via NTP on attempt $($i+1) of 10: $(Get-Date) greater than or equal to $OutOfSyncTime"
-    } else {
-        $TimeSetCorrectly = $true
-        break
-    }
+      if ((Get-Date) -ge $OutOfSyncTime) {
+          Write-Error "Time not reset correctly via NTP on attempt $($i+1) of 10: $(Get-Date) greater than or equal to $OutOfSyncTime"
+      } else {
+          $TimeSetCorrectly = $true
+          break
+      }
+  }
+
+  if (-not $TimeSetCorrectly) {
+      Write-Error "Time not reset correctly via NTP after 10 attempts"
+      Exit 1
+  }
 }
-
-if (-not $TimeSetCorrectly) {
-    Write-Error "Time not reset correctly via NTP after 10 attempts"
-    Exit 1
-}
-
-
+Verify-NTPSync
 Exit 0
