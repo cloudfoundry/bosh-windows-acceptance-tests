@@ -1,7 +1,4 @@
-﻿# Do not set ErrorActionPreference to stop as Get-Acl will error
-# if we do not have permission to read file permissions.
-
-function Verify-LGPO {
+﻿function Verify-LGPO {
   $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
   echo "Running this function Verify-LGPO"
   if ($windowsVersion -Match "2012") {
@@ -48,10 +45,7 @@ function Verify-LGPO {
     Assert-NoDiff "$OutputDir\audit.csv" "$TestDir\audit.csv"
   }
 }
-# Verify LGPO
-#Verify-LGPO
 
-# Check for dependencies
 function Verify-Dependencies {
   $BOSH_BIN="C:\\var\\vcap\\bosh\\bin"
   Write-Host "Checking $BOSH_BIN dependencies"
@@ -74,9 +68,7 @@ function Verify-Dependencies {
     Exit 1
   }
 }
-Verify-Dependencies
 
-# Check ACLs
 function Verify-Acls {
   $windowsVersion = [environment]::OSVersion.Version.Major
   $expectedacls = New-Object System.Collections.ArrayList
@@ -115,7 +107,6 @@ function Verify-Acls {
           }
         }
       }
-
       return $errCount
   }
 
@@ -129,34 +120,28 @@ function Verify-Acls {
       Exit 1
   }
 }
-Verify-Acls
-# Check Services
+
 function Verify-Services {
-# Check WinRM
   If ( (Get-Service WinRM).Status -ne "Stopped") {
     $msg = "WinRM is not Stopped. It is {0}" -f $(Get-Service WinRM).Status
     Write-Error $msg
     Exit 1
   }
 
-# Check sshd startup type
   If ( (Get-Service sshd).StartType -ne "Disabled") {
     $msg = "sshd is not disabled. It is {0}" -f $(Get-Service sshd).StartType
     Write-Error $msg
     Exit 1
   }
 
-# Check ssh-agent startup type
   If ( (Get-Service ssh-agent).StartType -ne "Disabled") {
     $msg = "ssh-agent is not disabled. It is {0}" -f $(Get-Service ssh-agent).StartType
     Write-Error $msg
     Exit 1
   }
 }
-Verify-Services
 
 function Verify-FirewallRules {
-# Check firewall rules
   function get-firewall {
     param([string] $profile)
     $firewall = (Get-NetFirewallProfile -Name $profile)
@@ -180,10 +165,8 @@ function Verify-FirewallRules {
   check-firewall "domain"
 
 }
-Verify-FirewallRules
 
 function Verify-MetadataFirewallRule {
-# Check metadata server
   $MetadataServerAllowRules = Get-NetFirewallRule -Enabled True -Direction Outbound | Get-NetFirewallAddressFilter | Where-Object -FilterScript { $_.RemoteAddress -Eq '169.254.169.254' }
   If ($MetadataServerAllowRules -Ne $null) {
     $RuleNames = $MetadataServerAllowRules | foreach { $_.InstanceID }
@@ -202,7 +185,6 @@ function Verify-MetadataFirewallRule {
     }
   }
 }
-Verify-MetadataFirewallRule
 
 function Verify-HWCAppStart {
   $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
@@ -226,10 +208,8 @@ function Verify-HWCAppStart {
     }
   }
 }
-Verify-HWCAppStart
 
 function Verify-InstalledFeatures {
-# Check installed features
   function Assert-IsInstalled {
     param (
       [string] $feature= (Throw "feature param required")
@@ -254,7 +234,6 @@ function Verify-InstalledFeatures {
   }
   $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
 
-# Ensure correct CF Windows features are installed
   if ($windowsVersion -Match "2012") {
     Assert-IsInstalled "Web-Webserver"
     Assert-IsInstalled "Web-WebSockets"
@@ -267,10 +246,8 @@ function Verify-InstalledFeatures {
     Assert-IsNotInstalled "Windows-Defender-Features"
   }
 }
-Verify-InstalledFeatures
 
-function Verify-ProvisonerDeleted {
-#Ensure provisioner user is deleted
+function Verify-ProvisionerDeleted {
   $adsi = [ADSI]"WinNT://$env:COMPUTERNAME"
   $user = "Provisioner"
   $existing = $adsi.Children | where {$_.SchemaClassName -eq 'user' -and $_.Name -eq $user }
@@ -281,16 +258,7 @@ function Verify-ProvisonerDeleted {
     Exit 1
   }
 }
-Verify-ProvisionerDeleted
 
-# We have a chore (https://www.pivotaltracker.com/story/show/149592041)
-# to ensure the Provisioner user's home directory is deleted when the user
-# is removed.
-#
-# if ((Resolve-Path "C:\Users\$user*").Length -ne 0) {
-#   Write-Error "User $user home dir still exists"
-#   Exit 1
-# }
 function Verify-NetBIOSDisabled {
   $DisabledNetBIOS = $false
   $nbtstat = nbtstat.exe -n
@@ -300,11 +268,8 @@ function Verify-NetBIOSDisabled {
       $DisabledNetBIOS = $DisabledNetBIOS -or $_ -like '*No names in cache*'
   }
 }
-Verify-NetBIOSDisabled
 
 function Verify-AgentBehavior {
-# Verify the Agent's start type is 'Manual'.
-#
   $agent = Get-Service | Where { $_.Name -eq 'bosh-agent' }
   if ($agent -eq $null) {
       Write-Error "Missing service: bosh-agent"
@@ -315,11 +280,6 @@ function Verify-AgentBehavior {
       Exit 1
   }
 
-# The Agent's start type will no longer be 'Automatic (Delayed)',
-# it will instead be 'Manual', so we check for the presence of
-# the below registry key, which is an artifact of the original
-# delayed setting.
-#
   $RegPath="HKLM:\SYSTEM\CurrentControlSet\Services\bosh-agent"
 
   if ((Get-ItemProperty  $RegPath).DelayedAutostart -ne 1) {
@@ -333,22 +293,18 @@ function Verify-AgentBehavior {
       Exit 1
   }
 
-# Verify-autoupdates have been stopped
   if ((Get-Service wuauserv).Status -ne "Stopped") {
       Write-Error "Error: expected wuauserv service to be Stopped"
       Exit 1
   }
 
-# Verify agent start type is not Disabled
   $StartType = (Get-Service wuauserv).StartType
   if ($StartType -ne "Disabled") {
       Write-Host "Warning: wuauserv service StartType is not disabled: ${StartType}"
   }
 }
-Verify-AgentBehavior
 
 function Verify-RandomPassword {
-# Verify randomize password has run
   secedit /configure /db secedit.sdb /cfg c:\var\vcap\jobs\check-system\inf\security.inf
 
   Add-Type -AssemblyName System.DirectoryServices.AccountManagement
@@ -360,8 +316,6 @@ function Verify-RandomPassword {
       Exit 1
   }
 }
-Verify-RandomPassword
-
 
 function Verify-DataDirNotMounted {
   $dataPartition = Get-Partition | where AccessPaths -Contains "C:\var\vcap\data\"
@@ -370,7 +324,6 @@ function Verify-DataDirNotMounted {
       Exit 1
   }
 }
-Verify-DataDirNotMounted
 
 function Verify-NTPSync {
   echo "Verifying NTP synch works correctly"
@@ -400,5 +353,19 @@ function Verify-NTPSync {
       Exit 1
   }
 }
+
+#Verify-LGPO
+Verify-Dependencies
+Verify-Acls
+Verify-Services
+Verify-FirewallRules
+Verify-MetadataFirewallRule
+Verify-HWCAppStart
+Verify-InstalledFeatures
+Verify-ProvisionerDeleted
+Verify-NetBIOSDisabled
+Verify-AgentBehavior
+Verify-RandomPassword
+Verify-DataDirNotMounted
 Verify-NTPSync
 Exit 0
