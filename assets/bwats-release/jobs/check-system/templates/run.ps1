@@ -26,7 +26,7 @@
     function Compare-LGPOPolicies {
       Param (
         [string] $ActualPoliciesFile = (Throw "ActualPoliciesFile param required"),
-        [string] $ExpectedPoliciesFile = (Throw "ExpectedPoliciesFile param required")
+        [string] $ExpectedPoliciesFile = (Throw "ExpectedPoliciesFile param required"),
         [string] $PolicyDelimiter = (Throw "PolicyDelimiter param required")
       )
 
@@ -56,6 +56,7 @@
     Compare-LGPOPolicies "$OutputDir\user_registry.txt" "$TestDir\user_registry.txt" "$newLineDelimiter$newLineDelimiter"
     Compare-LGPOPolicies "$OutputDir\GptTmpl.inf" "$TestDir\GptTmpl.inf" "$newLineDelimiter"
     Compare-LGPOPolicies "$OutputDir\audit.csv" "$TestDir\audit.csv" "$newLineDelimiter"
+  }
 }
 
 function Verify-Dependencies {
