@@ -10,6 +10,7 @@ Start-Service -Name wuauserv
 
 $MbsaCli = "C:\Program Files\Microsoft Baseline Security Analyzer 2\mbsacli.exe"
 $Output = & $MbsaCli /ia /n Password+IIS+OS+SQL
+Write-Host "MBSA Output: $Output"
 $Failed = $Output | Select-String "Check failed" | Select-String -NotMatch "non-critical"
 
 If (!!$Failed) {
