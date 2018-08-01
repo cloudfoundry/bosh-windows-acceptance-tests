@@ -279,7 +279,7 @@ var _ = Describe("BOSH Windows", func() {
 		}
 	})
 
-	It("checks system dependencies and security, auto update has turned off, currently has a Service StartType of 'Manual' and initially had a StartType of 'Delayed', password is randomized, and ephemeral disk is not mounted unless flag is on", func() {
+	FIt("checks system dependencies and security, auto update has turned off, currently has a Service StartType of 'Manual' and initially had a StartType of 'Delayed', password is randomized, and ephemeral disk is not mounted unless flag is on", func() {
 		err := runTest("check-system")
 		Expect(err).To(Succeed())
 	})
