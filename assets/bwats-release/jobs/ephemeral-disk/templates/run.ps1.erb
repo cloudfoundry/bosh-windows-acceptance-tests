@@ -43,16 +43,15 @@ if ($RunTest) {
         Exit 1
     }
 
-    $EphemeralVolume = Get-Volume -Partition $dataPartition
     $randFileSize = 2gb
 
-    $ephemeralDiskSpaceBeforeFill = $EphemeralVolume.SizeRemaining
+    $ephemeralDiskSpaceBeforeFill = (Get-Volume -Partition $dataPartition).SizeRemaining
     $rootDiskSpaceBeforeFill = (Get-Volume -DriveLetter C).SizeRemaining
 
     New-RandomFile -Size $randFileSize
 
     $rootDiskSpaceAfterFill = (Get-Volume -DriveLetter C).SizeRemaining
-    $ephemeralDiskSpaceAfterFill = $EphemeralVolume.SizeRemaining
+    $ephemeralDiskSpaceAfterFill = (Get-Volume -Partition $dataPartition).SizeRemaining
 
     $rootDiskDelta = $rootDiskSpaceBeforeFill - $rootDiskSpaceAfterFill
     $ephemeralDiskDelta = $ephemeralDiskSpaceBeforeFill - $ephemeralDiskSpaceAfterFill
