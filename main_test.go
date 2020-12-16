@@ -388,10 +388,10 @@ func createBwatsRelease(bosh *BoshCommand) string {
 	Expect(bosh.RunIn(fmt.Sprintf("add-blob %s golang-windows/%s", goZipPath, GoZipFile), releaseDir)).To(Succeed())
 
 	var lgpoZipPath string
-	if _, err := os.Stat(lgpoFile); os.IsExist(err) {
+	if _, err := os.Stat("LGPO.zip"); os.IsExist(err) {
 		pwd, err := os.Getwd()
 		Expect(err).NotTo(HaveOccurred())
-		lgpoZipPath = filepath.Join(pwd, lgpoFile)
+		lgpoZipPath = filepath.Join(pwd, "LGPO.zip")
 	} else {
 		lgpoZipPath, err = downloadFile("lgpo-", LgpoUrl)
 		Expect(err).NotTo(HaveOccurred())
