@@ -30,7 +30,7 @@ func init() {
 
 const BOSH_TIMEOUT = 90 * time.Minute
 
-const GoZipFile = "go1.15.6.windows-amd64.zip"
+const GoZipFile = "go1.12.7.windows-amd64.zip"
 const GolangURL = "https://storage.googleapis.com/golang/" + GoZipFile
 const LgpoUrl = "https://download.microsoft.com/download/8/5/C/85C25433-A1B0-4FFA-9429-7E023E7DA8D8/LGPO.zip"
 const lgpoFile = "LGPO.exe"
