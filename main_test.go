@@ -30,7 +30,7 @@ func init() {
 
 const BOSH_TIMEOUT = 90 * time.Minute
 
-const GoZipFile = "go1.12.7.windows-amd64.zip"
+const GoZipFile = "go1.15.6.windows-amd64.zip"
 const GolangURL = "https://storage.googleapis.com/golang/" + GoZipFile
 const LgpoUrl = "https://download.microsoft.com/download/8/5/C/85C25433-A1B0-4FFA-9429-7E023E7DA8D8/LGPO.zip"
 const lgpoFile = "LGPO.exe"
@@ -375,13 +375,27 @@ func createBwatsRelease(bosh *BoshCommand) string {
 	Expect(err).NotTo(HaveOccurred())
 
 	releaseVersion = fmt.Sprintf("0.dev+%d", getTimestampInMs())
-	goZipPath, err := downloadFile("golang-", GolangURL)
-	Expect(err).NotTo(HaveOccurred())
+	var goZipPath string
+	if _, err := os.Stat(GoZipFile); os.IsExist(err) {
+		pwd, err := os.Getwd()
+		Expect(err).NotTo(HaveOccurred())
+		goZipPath = filepath.Join(pwd, GoZipFile)
+	} else {
+		goZipPath, err = downloadFile("golang-", GolangURL)
+		Expect(err).NotTo(HaveOccurred())
+	}
 	releaseDir := filepath.Join(pwd, "assets", "bwats-release")
 	Expect(bosh.RunIn(fmt.Sprintf("add-blob %s golang-windows/%s", goZipPath, GoZipFile), releaseDir)).To(Succeed())
 
-	lgpoZipPath, err := downloadFile("lgpo-", LgpoUrl)
-	Expect(err).NotTo(HaveOccurred())
+	var lgpoZipPath string
+	if _, err := os.Stat(lgpoFile); os.IsExist(err) {
+		pwd, err := os.Getwd()
+		Expect(err).NotTo(HaveOccurred())
+		lgpoZipPath = filepath.Join(pwd, lgpoFile)
+	} else {
+		lgpoZipPath, err = downloadFile("lgpo-", LgpoUrl)
+		Expect(err).NotTo(HaveOccurred())
+	}
 
 	zipReader, err := zip.OpenReader(lgpoZipPath)
 	Expect(err).NotTo(HaveOccurred())
