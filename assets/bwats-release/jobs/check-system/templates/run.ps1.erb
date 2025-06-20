@@ -62,12 +62,6 @@ function Verify-LGPO
   $OsVersion = Get-OSVersion
   switch ($OsVersion)
   {
-    "windows2012R2" {
-      $TestDir = "$PSScriptRoot\..\test-2012R2"
-    }
-    "windows1803" {
-      $TestDir = "$PSScriptRoot\..\test-1803"
-    }
     "windows2019" {
       $TestDir = "$PSScriptRoot\..\test-2019"
     }
@@ -114,19 +108,12 @@ function Verify-Acls {
       "NT SERVICE\TrustedInstaller,Allow"
   ))
 
-  if ($windowsVersion -match "2012") {
-    Write-Host "Adding 2012R2 ACLs"
-    $expectedacls.Add("NT SERVICE\sshd,Allow")
-    # For the new OpenSSH v7.7.2.0p1-Beta and later
-    $expectedacls.Add("NT AUTHORITY\Authenticated Users,Allow")
-  } else {
-    Write-Host "Adding ${windowsVersion} ACLs"
-    # for 2016 and later, for some reason every file in C:\Program Files\OpenSSH
-    # ends up with "APPLICATION PACKAGE AUTHORITY\ALL RESTRICTED APPLICATION PACKAGES,Allow".
-    # adding this to unblock 2016 and later pipelines
-    $expectedacls.Add("APPLICATION PACKAGE AUTHORITY\ALL RESTRICTED APPLICATION PACKAGES,Allow")
-    $expectedacls.Add("NT AUTHORITY\Authenticated Users,Allow")
-  }
+  Write-Host "Adding ${windowsVersion} ACLs"
+  # File in C:\Program Files\OpenSSH end up with the ACLs
+  # "APPLICATION PACKAGE AUTHORITY\ALL RESTRICTED APPLICATION PACKAGES,Allow".
+  # so we add them here
+  $expectedacls.Add("APPLICATION PACKAGE AUTHORITY\ALL RESTRICTED APPLICATION PACKAGES,Allow")
+  $expectedacls.Add("NT AUTHORITY\Authenticated Users,Allow")
 
   function Check-Acls {
       param([string]$path)
@@ -228,30 +215,6 @@ function Verify-MetadataFirewallRule {
   }
 }
 
-function Verify-HWCAppStart {
-  $windowsVersion = (Get-WmiObject -class Win32_OperatingSystem).Caption
-  if ($windowsVersion -Match "2012") {
-    # Ensure HWC apps can get started
-    Start-Process -FilePath "C:\var\vcap\jobs\check-system\bin\HWCServer.exe" -ArgumentList "9000"
-    Start-Sleep -s 60
-    $status = (Invoke-WebRequest -Uri "http://localhost:9000" -UseBasicParsing).StatusCode
-    If ($status -ne 200) {
-      Write-Error "Failed to start HWC app"
-      Exit 1
-    } else {
-      Write-Host "HWC apps can start"
-    }
-
-    $status = try { Invoke-WebRequest -Uri "http://localhost" -UseBasicParsing } catch {}
-    If ($status -ne $nil) {
-      Write-Error "IIS Web Server is not turned off"
-      Exit 1
-    } else {
-      Write-Host "IIS Web Server is turned off"
-    }
-  }
-}
-
 function Verify-InstalledFeatures {
   function Assert-IsInstalled {
     param (
@@ -276,19 +239,8 @@ function Verify-InstalledFeatures {
     }
   }
 
-  $windowsVersion = Get-OSVersion
-
-  if ($windowsVersion -Match "2012") {
-    Assert-IsInstalled "Web-Webserver"
-    Assert-IsInstalled "Web-WebSockets"
-    Assert-IsInstalled "AS-Web-Support"
-    Assert-IsInstalled "AS-NET-Framework"
-    Assert-IsInstalled "Web-WHC"
-    Assert-IsInstalled "Web-ASP"
-  } else {
-    Assert-IsInstalled "Containers"
-    Assert-IsNotInstalled "Windows-Defender"
-  }
+  Assert-IsInstalled "Containers"
+  Assert-IsNotInstalled "Windows-Defender"
 }
 
 function Verify-ProvisionerDeleted {
@@ -448,18 +400,13 @@ function Verify-TimeZone {
 }
 
 
-#CIS hardening has been skipped for Windows1709
-$osVersion = Get-OSVersion
-if (-Not ($osVersion -Match "windows2016")) {
-  Verify-LGPO
-}
+Verify-LGPO
 
 Verify-Dependencies
 Verify-Acls
 Verify-Services
 Verify-FirewallRules
 Verify-MetadataFirewallRule
-Verify-HWCAppStart
 Verify-InstalledFeatures
 Verify-ProvisionerDeleted
 Verify-NetBIOSDisabled
