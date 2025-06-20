@@ -12,6 +12,7 @@ templates:
   AuditPolicies.Tests.ps1: bin/AuditPolicies.Tests.ps1
 
 packages:
+- pester
 - lgpo
 
 properties:
