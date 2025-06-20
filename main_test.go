@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -87,7 +86,7 @@ func NewConfig() (*Config, error) {
 	if configFilePath == "" {
 		return nil, fmt.Errorf("invalid config file path: %v", configFilePath)
 	}
-	body, err := ioutil.ReadFile(configFilePath)
+	body, err := os.ReadFile(configFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("empty config file path: %v", configFilePath)
 	}
@@ -119,7 +118,7 @@ func setupBosh(config *Config) *BoshCommand {
 	var boshCertPath string
 	cert := config.Bosh.CaCert
 	if cert != "" {
-		certFile, err := ioutil.TempFile("", "")
+		certFile, err := os.CreateTemp("", "")
 		Expect(err).NotTo(HaveOccurred())
 
 		_, err = certFile.Write([]byte(cert))
@@ -214,7 +213,8 @@ var _ = Describe("BOSH Windows", func() {
 		Expect(err).NotTo(HaveOccurred())
 		bosh = setupBosh(config)
 
-		bosh.Run("login")
+		err = bosh.Run("login")
+		Expect(err).NotTo(HaveOccurred())
 		deploymentName = fmt.Sprintf("windows-acceptance-test-%d", getTimestampInMs())
 
 		stemcellYML, err := fetchStemcellInfo(config.Stemcellpath)
@@ -237,21 +237,26 @@ var _ = Describe("BOSH Windows", func() {
 			if index == len(tightLoopStemcellVersions)-1 {
 				continue // Last release is still being used by the deployment, so it cannot be deleted yet
 			}
-			bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", version))
+			err := bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", version))
+			Expect(err).NotTo(HaveOccurred())
 		}
 		if config.SkipCleanup {
 			return
 		}
 
-		bosh.Run(fmt.Sprintf("-d %s delete-deployment --force", deploymentName))
-		bosh.Run(fmt.Sprintf("delete-stemcell %s/%s", stemcellName, stemcellVersion))
-		bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", releaseVersion))
+		err := bosh.Run(fmt.Sprintf("-d %s delete-deployment --force", deploymentName))
+		Expect(err).NotTo(HaveOccurred())
+		err = bosh.Run(fmt.Sprintf("delete-stemcell %s/%s", stemcellName, stemcellVersion))
+		Expect(err).NotTo(HaveOccurred())
+		err = bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", releaseVersion))
+		Expect(err).NotTo(HaveOccurred())
 		if len(tightLoopStemcellVersions) != 0 {
-			bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", tightLoopStemcellVersions[len(tightLoopStemcellVersions)-1]))
+			err = bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", tightLoopStemcellVersions[len(tightLoopStemcellVersions)-1]))
+			Expect(err).NotTo(HaveOccurred())
 		}
 
 		if bosh.CertPath != "" {
-			os.RemoveAll(bosh.CertPath)
+			Expect(os.RemoveAll(bosh.CertPath)).To(Succeed())
 		}
 	})
 
@@ -269,7 +274,7 @@ var _ = Describe("BOSH Windows", func() {
 		f, err := os.OpenFile(filepath.Join(releaseDir, "jobs", "simple-job", "templates", "pre-start.ps1"),
 			os.O_APPEND|os.O_WRONLY, 0600)
 		Expect(err).ToNot(HaveOccurred())
-		defer f.Close()
+		defer f.Close() //nolint:errcheck
 
 		for i := 0; i < redeployRetries; i++ {
 			log.Printf("Redeploy attempt: #%d\n", i)
@@ -317,7 +322,8 @@ var _ = Describe("BOSH Windows", func() {
 		var slowCompilingDeploymentName string
 
 		AfterEach(func() {
-			bosh.Run(fmt.Sprintf("-d %s delete-deployment --force", slowCompilingDeploymentName))
+			err := bosh.Run(fmt.Sprintf("-d %s delete-deployment --force", slowCompilingDeploymentName))
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("deploys when there is a slow to compile go package", func() {
@@ -327,7 +333,8 @@ var _ = Describe("BOSH Windows", func() {
 
 			slowCompilingDeploymentName = fmt.Sprintf("windows-acceptance-test-slow-compile-%d", getTimestampInMs())
 
-			config.deployWithManifest(bosh, slowCompilingDeploymentName, stemcellVersion, releaseVersion, manifestPath)
+			err = config.deployWithManifest(bosh, slowCompilingDeploymentName, stemcellVersion, releaseVersion, manifestPath)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
@@ -376,7 +383,7 @@ func createBwatsRelease(bosh *BoshCommand) string {
 
 	releaseVersion = fmt.Sprintf("0.dev+%d", getTimestampInMs())
 	var goZipPath string
-	if _, err := os.Stat(filepath.Join(pwd, GoZipFile)); os.IsNotExist(err) {
+	if _, err = os.Stat(filepath.Join(pwd, GoZipFile)); os.IsNotExist(err) {
 		goZipPath, err = downloadFile("golang-", GolangURL)
 		Expect(err).NotTo(HaveOccurred())
 	} else {
@@ -386,7 +393,7 @@ func createBwatsRelease(bosh *BoshCommand) string {
 	Expect(bosh.RunIn(fmt.Sprintf("add-blob %s golang-windows/%s", goZipPath, GoZipFile), releaseDir)).To(Succeed())
 
 	var lgpoZipPath string
-	if _, err := os.Stat(filepath.Join(pwd, "LGPO.zip")); os.IsNotExist(err) {
+	if _, err = os.Stat(filepath.Join(pwd, "LGPO.zip")); os.IsNotExist(err) {
 		lgpoZipPath, err = downloadFile("lgpo-", LgpoUrl)
 		Expect(err).NotTo(HaveOccurred())
 	} else {
@@ -396,16 +403,17 @@ func createBwatsRelease(bosh *BoshCommand) string {
 	zipReader, err := zip.OpenReader(lgpoZipPath)
 	Expect(err).NotTo(HaveOccurred())
 
-	lgpoPath, err := ioutil.TempFile("", lgpoFile)
+	lgpoPath, err := os.CreateTemp("", lgpoFile)
 	Expect(err).NotTo(HaveOccurred())
 
 	for _, zipFile := range zipReader.File {
 		if zipFile.Name == "LGPO_30/"+lgpoFile {
-			filename := lgpoPath.Name()
-			f, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, zipFile.Mode())
+			var f *os.File
+			f, err = os.OpenFile(lgpoPath.Name(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, zipFile.Mode())
 			Expect(err).NotTo(HaveOccurred())
 
-			zipRC, err := zipFile.Open()
+			var zipRC io.ReadCloser
+			zipRC, err = zipFile.Open()
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err = io.Copy(f, zipRC)
@@ -448,7 +456,7 @@ func (m ManifestProperties) toVarsString() string {
 		fmt.Sprintf("-v SecurityComplianceApplied=%t", m.SecurityComplianceApplied),
 	}
 
-	_, err := fmt.Fprintf(&b, strings.Join(boolOperators, " "))
+	_, err := fmt.Fprint(&b, strings.Join(boolOperators, " "))
 	Expect(err).NotTo(HaveOccurred())
 
 	return b.String()
@@ -474,9 +482,9 @@ func (m ManifestProperties) toMap() map[string]string {
 }
 
 func downloadLogs(instanceName string, jobName string, index int, bosh *BoshCommand) *gbytes.Buffer {
-	tempDir, err := ioutil.TempDir("", "")
+	tempDir, err := os.MkdirTemp("", "")
 	Expect(err).NotTo(HaveOccurred())
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck
 
 	err = bosh.Run(fmt.Sprintf("-d %s logs %s/%d --dir %s", deploymentName, instanceName, index, tempDir))
 	Expect(err).NotTo(HaveOccurred())
@@ -498,9 +506,9 @@ func getTimestampInMs() int64 {
 
 func fetchStemcellInfo(stemcellPath string) (StemcellYML, error) {
 	var stemcellInfo StemcellYML
-	tempDir, err := ioutil.TempDir("", "")
+	tempDir, err := os.MkdirTemp("", "")
 	Expect(err).NotTo(HaveOccurred())
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck
 
 	cmd := exec.Command("tar", "xf", stemcellPath, "-C", tempDir, "stemcell.MF")
 	session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
@@ -518,7 +526,7 @@ func fetchStemcellInfo(stemcellPath string) (StemcellYML, error) {
 			strings.Join(cmd.Args, " "), exitCode, stderr, stdout)
 	}
 
-	stemcellMF, err := ioutil.ReadFile(fmt.Sprintf("%s/%s", tempDir, "stemcell.MF"))
+	stemcellMF, err := os.ReadFile(fmt.Sprintf("%s/%s", tempDir, "stemcell.MF"))
 	Expect(err).NotTo(HaveOccurred())
 
 	err = yaml.Unmarshal(stemcellMF, &stemcellInfo)
@@ -530,7 +538,7 @@ func fetchStemcellInfo(stemcellPath string) (StemcellYML, error) {
 }
 
 func downloadFile(prefix, sourceUrl string) (string, error) {
-	tempfile, err := ioutil.TempFile("", prefix)
+	tempfile, err := os.CreateTemp("", prefix)
 	if err != nil {
 		return "", err
 	}
@@ -540,13 +548,13 @@ func downloadFile(prefix, sourceUrl string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	res, err := http.Get(sourceUrl)
 	if err != nil {
 		return "", err
 	}
-	defer res.Body.Close()
+	defer res.Body.Close() //nolint:errcheck
 	if _, err := io.Copy(f, res.Body); err != nil {
 		return "", err
 	}
@@ -576,7 +584,8 @@ func (c *Config) deployWithManifest(bosh *BoshCommand, deploymentName string, st
 	var err error
 
 	if c.RootEphemeralVmType != "" {
-		pwd, err := os.Getwd()
+		var pwd string
+		pwd, err = os.Getwd()
 		Expect(err).NotTo(HaveOccurred())
 		opsFilePath := filepath.Join(pwd, "assets", "root-disk-as-ephemeral.yml")
 
