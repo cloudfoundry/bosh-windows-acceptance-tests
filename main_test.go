@@ -47,7 +47,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("empty testConfig file path: '%s'", configFilePath))
 
 	err = json.Unmarshal(body, &testConfig)
-	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("unable to parse testConfig file '%s', %w:", string(body), err))
+	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("unable to parse testConfig file '%s', %v:", string(body), err))
 
 	Expect(testConfig.StemcellOs).ToNot(BeEmpty(), fmt.Sprintf("missing required field: '%s'", "stemcell_os"))
 
