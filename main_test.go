@@ -205,61 +205,61 @@ var (
 	config                    *Config
 )
 
+var _ = BeforeSuite(func() {
+	var err error
+
+	config, err = NewConfig()
+	Expect(err).NotTo(HaveOccurred())
+	bosh = setupBosh(config)
+
+	err = bosh.Run("login")
+	Expect(err).NotTo(HaveOccurred())
+	deploymentName = fmt.Sprintf("windows-acceptance-test-%d", getTimestampInMs())
+
+	stemcellYML, err := fetchStemcellInfo(config.Stemcellpath)
+	Expect(err).NotTo(HaveOccurred())
+
+	stemcellName = stemcellYML.Name
+	stemcellVersion = stemcellYML.Version
+
+	releaseVersion = createBwatsRelease(bosh)
+
+	uploadStemcell(config, bosh)
+
+	err = config.deploy(bosh, deploymentName, stemcellVersion, releaseVersion)
+	Expect(err).NotTo(HaveOccurred())
+})
+
+var _ = AfterSuite(func() {
+	// Delete the releases created by the tight loop test
+	for index, version := range tightLoopStemcellVersions {
+		if index == len(tightLoopStemcellVersions)-1 {
+			continue // Last release is still being used by the deployment, so it cannot be deleted yet
+		}
+		err := bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", version))
+		Expect(err).NotTo(HaveOccurred())
+	}
+	if config.SkipCleanup {
+		return
+	}
+
+	err := bosh.Run(fmt.Sprintf("-d %s delete-deployment --force", deploymentName))
+	Expect(err).NotTo(HaveOccurred())
+	err = bosh.Run(fmt.Sprintf("delete-stemcell %s/%s", stemcellName, stemcellVersion))
+	Expect(err).NotTo(HaveOccurred())
+	err = bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", releaseVersion))
+	Expect(err).NotTo(HaveOccurred())
+	if len(tightLoopStemcellVersions) != 0 {
+		err = bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", tightLoopStemcellVersions[len(tightLoopStemcellVersions)-1]))
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	if bosh.CertPath != "" {
+		Expect(os.RemoveAll(bosh.CertPath)).To(Succeed())
+	}
+})
+
 var _ = Describe("BOSH Windows", func() {
-	BeforeSuite(func() {
-		var err error
-
-		config, err = NewConfig()
-		Expect(err).NotTo(HaveOccurred())
-		bosh = setupBosh(config)
-
-		err = bosh.Run("login")
-		Expect(err).NotTo(HaveOccurred())
-		deploymentName = fmt.Sprintf("windows-acceptance-test-%d", getTimestampInMs())
-
-		stemcellYML, err := fetchStemcellInfo(config.Stemcellpath)
-		Expect(err).NotTo(HaveOccurred())
-
-		stemcellName = stemcellYML.Name
-		stemcellVersion = stemcellYML.Version
-
-		releaseVersion = createBwatsRelease(bosh)
-
-		uploadStemcell(config, bosh)
-
-		err = config.deploy(bosh, deploymentName, stemcellVersion, releaseVersion)
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterSuite(func() {
-		// Delete the releases created by the tight loop test
-		for index, version := range tightLoopStemcellVersions {
-			if index == len(tightLoopStemcellVersions)-1 {
-				continue // Last release is still being used by the deployment, so it cannot be deleted yet
-			}
-			err := bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", version))
-			Expect(err).NotTo(HaveOccurred())
-		}
-		if config.SkipCleanup {
-			return
-		}
-
-		err := bosh.Run(fmt.Sprintf("-d %s delete-deployment --force", deploymentName))
-		Expect(err).NotTo(HaveOccurred())
-		err = bosh.Run(fmt.Sprintf("delete-stemcell %s/%s", stemcellName, stemcellVersion))
-		Expect(err).NotTo(HaveOccurred())
-		err = bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", releaseVersion))
-		Expect(err).NotTo(HaveOccurred())
-		if len(tightLoopStemcellVersions) != 0 {
-			err = bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", tightLoopStemcellVersions[len(tightLoopStemcellVersions)-1]))
-			Expect(err).NotTo(HaveOccurred())
-		}
-
-		if bosh.CertPath != "" {
-			Expect(os.RemoveAll(bosh.CertPath)).To(Succeed())
-		}
-	})
-
 	It("can run a job that relies on a package", func() {
 		time.Sleep(60 * time.Second)
 		Eventually(downloadLogs("check-multiple", "simple-job", 0, bosh),
