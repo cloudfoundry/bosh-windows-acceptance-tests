@@ -44,6 +44,7 @@ var _ = BeforeSuite(func() {
 	Expect(configFilePath).ToNot(BeEmpty(), fmt.Sprintf("invalid testConfig file path: '%s'", configFilePath))
 
 	body, err := os.ReadFile(configFilePath)
+	By(fmt.Sprintf("Loaded:  '%s'\n%s", configFilePath, string(body)))
 	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("empty testConfig file path: '%s'", configFilePath))
 
 	err = json.Unmarshal(body, &testConfig)
