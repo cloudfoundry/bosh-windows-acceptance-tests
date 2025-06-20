@@ -41,15 +41,15 @@ var (
 
 var _ = BeforeSuite(func() {
 	configFilePath := os.Getenv("CONFIG_JSON")
-	Expect(configFilePath).ToNot(BeEmpty(), fmt.Sprintf("invalid testConfig file path: %v", configFilePath))
+	Expect(configFilePath).ToNot(BeEmpty(), fmt.Sprintf("invalid testConfig file path: '%s'", configFilePath))
 
 	body, err := os.ReadFile(configFilePath)
-	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("empty testConfig file path: %v", configFilePath))
+	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("empty testConfig file path: '%s'", configFilePath))
 
 	err = json.Unmarshal(body, &testConfig)
-	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("unable to parse testConfig file: %s: %s", err.Error(), string(body)))
+	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("unable to parse testConfig file '%s', %w:", string(body), err))
 
-	Expect(testConfig.StemcellOs).ToNot(BeEmpty(), fmt.Sprintf("missing required field: %v", "stemcell_os"))
+	Expect(testConfig.StemcellOs).ToNot(BeEmpty(), fmt.Sprintf("missing required field: '%s'", "stemcell_os"))
 
 	if testConfig.VmExtensions == "" {
 		testConfig.VmExtensions = "500GB_ephemeral_disk"
