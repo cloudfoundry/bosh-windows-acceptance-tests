@@ -49,7 +49,6 @@ var _ = BeforeSuite(func() {
 
 	err = json.Unmarshal(body, &testConfig)
 	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("unable to parse testConfig file '%s', %v:", string(body), err))
-	By(fmt.Sprintf("Unmarshal:\n%v", testConfig))
 
 	Expect(testConfig.StemcellOs).ToNot(BeEmpty(), fmt.Sprintf("missing required field: '%s'", "stemcell_os"))
 
@@ -207,7 +206,7 @@ type TestConfig struct {
 		Client       string `json:"client"`
 		ClientSecret string `json:"client_secret"`
 		Target       string `json:"target"`
-	} `json:"boshCommand"`
+	} `json:"bosh"`
 	StemcellPath              string `json:"stemcell_path"`
 	StemcellOs                string `json:"stemcell_os"`
 	Az                        string `json:"az"`
