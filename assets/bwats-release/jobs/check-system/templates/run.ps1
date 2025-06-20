@@ -1,4 +1,13 @@
 ﻿$ErrorActionPreference = "Stop";
+
+function Get-Config {
+  $configPath = Join-Path $PSScriptRoot "config.json"
+  Write-Host "Loading '$configPath'"
+  $config = Get-Content $configPath -raw | ConvertFrom-Json
+  Write-Host "Loaded '$configPath'"
+  return $config
+}
+
 function Verify-LGPO
 {
   echo "Running this function Verify-LGPO"
@@ -147,7 +156,8 @@ function Verify-Acls {
 }
 
 function Verify-Services {
-  $SSH_Disabled=[bool]$<%= p("ssh.disabled_by_default") %>
+  $config = Get-Config
+  $SSH_Disabled = if ($config.ssh_disabled_by_default -eq "true") { $True } else { $False }
 
   If ( (Get-Service WinRM).Status -ne "Stopped") {
     $msg = "WinRM is not Stopped. It is {0}" -f $(Get-Service WinRM).Status
@@ -306,8 +316,10 @@ function Verify-RandomPassword {
   Add-Type -AssemblyName System.DirectoryServices.AccountManagement
   $ComputerName=hostname
   $DS = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('machine',$ComputerName)
-  $DefaultUsername='<%= p("password.default_username") %>'
-  $DefaultPassword='<%= p("password.default_password") %>'
+
+  $config = Get-Config
+  $DefaultUsername = $config.default_username
+  $DefaultPassword = $config.default_password
   if ($DS.ValidateCredentials($DefaultUsername, $DefaultPassword)) {
       Write-Error "$DefaultUsername password was not randomized"
       Exit 1
@@ -399,9 +411,7 @@ function Verify-TimeZone {
   }
 }
 
-
 Verify-LGPO
-
 Verify-Dependencies
 Verify-Acls
 Verify-Services
@@ -418,12 +428,12 @@ Verify-PSVersion5
 Verify-VersionFile
 Verify-TimeZone
 
-Import-Module C:\var\vcap\packages\pester\Pester\Pester.psd1
-
-$validatePolicies=[bool]$<%= p("security_compliance.expected_to_comply") %>
+$config = Get-Config
+$validatePolicies = if ($config.security_compliance_expected_to_comply -eq "true") { $True } else { $False }
 
 if ( $validatePolicies )
 {
+  Import-Module C:\var\vcap\packages\pester\Pester\Pester.psd1
   $pesterResults = Invoke-Pester $PSScriptRoot/AuditPolicies.Tests.ps1 -PassThru
   if ($pesterResults.FailedCount -gt 0)
   {
