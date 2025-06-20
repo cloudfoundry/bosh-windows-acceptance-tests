@@ -2,10 +2,9 @@ package bosh_windows_acceptance_tests_test
 
 import (
 	"archive/zip"
-	"encoding/json"
+	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -13,21 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"bytes"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
-	"gopkg.in/yaml.v2"
 )
 
-func init() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.SetOutput(GinkgoWriter)
-}
-
-const BOSH_TIMEOUT = 90 * time.Minute
+const BoshTimeout = 90 * time.Minute
 
 const GoZipFile = "go1.12.7.windows-amd64.zip"
 const GolangURL = "https://storage.googleapis.com/golang/" + GoZipFile
@@ -35,234 +26,21 @@ const LgpoUrl = "https://download.microsoft.com/download/8/5/C/85C25433-A1B0-4FF
 const lgpoFile = "LGPO.exe"
 const redeployRetries = 10
 
-type ManifestProperties struct {
-	DeploymentName            string
-	ReleaseName               string
-	AZ                        string
-	VmType                    string
-	RootEphemeralVmType       string
-	VmExtensions              string
-	Network                   string
-	StemcellOs                string
-	StemcellVersion           string
-	ReleaseVersion            string
-	DefaultUsername           string
-	DefaultPassword           string
-	MountEphemeralDisk        bool
-	SSHDisabledByDefault      bool
-	SecurityComplianceApplied bool
-}
-
-type StemcellYML struct {
-	Version string `yaml:"version"`
-	Name    string `yaml:"name"`
-}
-
-type Config struct {
-	Bosh struct {
-		CaCert       string `json:"ca_cert"`
-		Client       string `json:"client"`
-		ClientSecret string `json:"client_secret"`
-		Target       string `json:"target"`
-	} `json:"bosh"`
-	Stemcellpath              string `json:"stemcell_path"`
-	StemcellOs                string `json:"stemcell_os"`
-	Az                        string `json:"az"`
-	VmType                    string `json:"vm_type"`
-	RootEphemeralVmType       string `json:"root_ephemeral_vm_type"`
-	VmExtensions              string `json:"vm_extensions"`
-	Network                   string `json:"network"`
-	DefaultUsername           string `json:"default_username"`
-	DefaultPassword           string `json:"default_password"`
-	SkipCleanup               bool   `json:"skip_cleanup"`
-	MountEphemeralDisk        bool   `json:"mount_ephemeral_disk"`
-	SkipMSUpdateTest          bool   `json:"skip_ms_update_test"`
-	SSHDisabledByDefault      bool   `json:"ssh_disabled_by_default"`
-	SecurityComplianceApplied bool   `json:"security_compliance_applied"`
-}
-
-func NewConfig() (*Config, error) {
-	configFilePath := os.Getenv("CONFIG_JSON")
-	if configFilePath == "" {
-		return nil, fmt.Errorf("invalid config file path: %v", configFilePath)
-	}
-	body, err := os.ReadFile(configFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("empty config file path: %v", configFilePath)
-	}
-	var config Config
-	err = json.Unmarshal(body, &config)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse config file: %s: %s", err.Error(), string(body))
-	}
-	if config.StemcellOs == "" {
-		return nil, fmt.Errorf("missing required field: %v", "stemcell_os")
-	}
-
-	if config.VmExtensions == "" {
-		config.VmExtensions = "500GB_ephemeral_disk"
-	}
-
-	return &config, nil
-}
-
-type BoshCommand struct {
-	DirectorIP   string
-	Client       string
-	ClientSecret string
-	CertPath     string // Path to CA CERT file, if any
-	Timeout      time.Duration
-}
-
-func setupBosh(config *Config) *BoshCommand {
-	var boshCertPath string
-	cert := config.Bosh.CaCert
-	if cert != "" {
-		certFile, err := os.CreateTemp("", "")
-		Expect(err).NotTo(HaveOccurred())
-
-		_, err = certFile.Write([]byte(cert))
-		Expect(err).NotTo(HaveOccurred())
-
-		boshCertPath, err = filepath.Abs(certFile.Name())
-		Expect(err).NotTo(HaveOccurred())
-	}
-
-	timeout := BOSH_TIMEOUT
-	var err error
-	if s := os.Getenv("BWATS_BOSH_TIMEOUT"); s != "" {
-		timeout, err = time.ParseDuration(s)
-		log.Printf("Using BWATS_BOSH_TIMEOUT (%s) as timeout\n", s)
-
-		if err != nil {
-			log.Printf("Error parsing BWATS_BOSH_TIMEOUT (%s): %s - falling back to default\n", s, err)
-		}
-	}
-
-	return &BoshCommand{
-		DirectorIP:   config.Bosh.Target,
-		Client:       config.Bosh.Client,
-		ClientSecret: config.Bosh.ClientSecret,
-		CertPath:     boshCertPath,
-		Timeout:      timeout,
-	}
-}
-
-func (c *BoshCommand) args(command string) []string {
-	args := strings.Split(command, " ")
-	args = append([]string{"-n", "-e", c.DirectorIP, "--client", c.Client, "--client-secret", c.ClientSecret}, args...)
-	if c.CertPath != "" {
-		args = append([]string{"--ca-cert", c.CertPath}, args...)
-	}
-	return args
-}
-
-func (c *BoshCommand) Run(command string) error {
-	return c.RunIn(command, "")
-}
-
-func (c *BoshCommand) RunInStdOut(command, dir string) ([]byte, error) {
-	cmd := exec.Command("bosh", c.args(command)...)
-	if dir != "" {
-		cmd.Dir = dir
-		log.Printf("\nRUNNING %q IN %q\n", strings.Join(cmd.Args, " "), dir)
-	} else {
-		log.Printf("\nRUNNING %q\n", strings.Join(cmd.Args, " "))
-	}
-
-	session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
-	if err != nil {
-		return nil, err
-	}
-	Eventually(session, c.Timeout).Should(gexec.Exit())
-
-	exitCode := session.ExitCode()
-	stdout := session.Out.Contents()
-	if exitCode != 0 {
-		var stderr []byte
-		if session.Err != nil {
-			stderr = session.Err.Contents()
-		}
-		return stdout, fmt.Errorf("Non-zero exit code for cmd %q: %d\nSTDERR:\n%s\nSTDOUT:%s\n",
-			strings.Join(cmd.Args, " "), exitCode, stderr, stdout)
-	}
-	return stdout, nil
-}
-
-func (c *BoshCommand) RunIn(command, dir string) error {
-	_, err := c.RunInStdOut(command, dir)
-	return err
-}
-
 var (
-	bosh                      *BoshCommand
+	boshCommand               *BoshCommand
 	deploymentName            string
 	manifestPath              string
 	stemcellName              string
 	stemcellVersion           string
 	releaseVersion            string
 	tightLoopStemcellVersions []string
-	config                    *Config
+	testConfig                *TestConfig
 )
-
-var _ = BeforeSuite(func() {
-	var err error
-
-	config, err = NewConfig()
-	Expect(err).NotTo(HaveOccurred())
-	bosh = setupBosh(config)
-
-	err = bosh.Run("login")
-	Expect(err).NotTo(HaveOccurred())
-	deploymentName = fmt.Sprintf("windows-acceptance-test-%d", getTimestampInMs())
-
-	stemcellYML, err := fetchStemcellInfo(config.Stemcellpath)
-	Expect(err).NotTo(HaveOccurred())
-
-	stemcellName = stemcellYML.Name
-	stemcellVersion = stemcellYML.Version
-
-	releaseVersion = createBwatsRelease(bosh)
-
-	uploadStemcell(config, bosh)
-
-	err = config.deploy(bosh, deploymentName, stemcellVersion, releaseVersion)
-	Expect(err).NotTo(HaveOccurred())
-})
-
-var _ = AfterSuite(func() {
-	// Delete the releases created by the tight loop test
-	for index, version := range tightLoopStemcellVersions {
-		if index == len(tightLoopStemcellVersions)-1 {
-			continue // Last release is still being used by the deployment, so it cannot be deleted yet
-		}
-		err := bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", version))
-		Expect(err).NotTo(HaveOccurred())
-	}
-	if config.SkipCleanup {
-		return
-	}
-
-	err := bosh.Run(fmt.Sprintf("-d %s delete-deployment --force", deploymentName))
-	Expect(err).NotTo(HaveOccurred())
-	err = bosh.Run(fmt.Sprintf("delete-stemcell %s/%s", stemcellName, stemcellVersion))
-	Expect(err).NotTo(HaveOccurred())
-	err = bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", releaseVersion))
-	Expect(err).NotTo(HaveOccurred())
-	if len(tightLoopStemcellVersions) != 0 {
-		err = bosh.Run(fmt.Sprintf("delete-release bwats-release/%s", tightLoopStemcellVersions[len(tightLoopStemcellVersions)-1]))
-		Expect(err).NotTo(HaveOccurred())
-	}
-
-	if bosh.CertPath != "" {
-		Expect(os.RemoveAll(bosh.CertPath)).To(Succeed())
-	}
-})
 
 var _ = Describe("BOSH Windows", func() {
 	It("can run a job that relies on a package", func() {
 		time.Sleep(60 * time.Second)
-		Eventually(downloadLogs("check-multiple", "simple-job", 0, bosh),
+		Eventually(downloadLogs("check-multiple", "simple-job", 0, boshCommand),
 			time.Second*65).Should(gbytes.Say("60 seconds passed"))
 	})
 
@@ -277,44 +55,44 @@ var _ = Describe("BOSH Windows", func() {
 		defer f.Close() //nolint:errcheck
 
 		for i := 0; i < redeployRetries; i++ {
-			log.Printf("Redeploy attempt: #%d\n", i)
+			GinkgoWriter.Printf("Redeploy attempt: #%d\n", i)
 
 			version := fmt.Sprintf("0.dev+%d", getTimestampInMs())
 			tightLoopStemcellVersions = append(tightLoopStemcellVersions, version)
-			Expect(bosh.RunIn("create-release --force --version "+version, releaseDir)).To(Succeed())
+			Expect(boshCommand.RunIn(fmt.Sprintf("create-release --force --version %s", version), releaseDir)).To(Succeed())
 
-			Expect(bosh.RunIn("upload-release", releaseDir)).To(Succeed())
+			Expect(boshCommand.RunIn("upload-release", releaseDir)).To(Succeed())
 
-			err = config.deploy(bosh, deploymentName, stemcellVersion, version)
+			err = testConfig.deploy(boshCommand, deploymentName, stemcellVersion, version)
 
 			if err != nil {
-				downloadLogs("check-multiple", "simple-job", 0, bosh)
+				downloadLogs("check-multiple", "simple-job", 0, boshCommand)
 				Fail(err.Error())
 			}
 		}
 	})
 
 	It("checks system dependencies and security, auto update has turned off, currently has a Service StartType of 'Manual' and initially had a StartType of 'Delayed', and password is randomized", func() {
-		err := runTest("check-system")
+		err := boshCommand.RunErrand("check-system", deploymentName)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("is fully updated", func() { // 860s
-		if config.SkipMSUpdateTest {
+		if testConfig.SkipMSUpdateTest {
 			Skip("Skipping check-updates test - SkipMSUpdateTest set to true")
 		} else {
-			err := runTest("check-updates")
+			err := boshCommand.RunErrand("check-updates", deploymentName)
 			Expect(err).NotTo(HaveOccurred())
 		}
 	})
 
 	It("has all certificate authority certs that are present on the Windows Update Server", func() {
-		err := runTest("check-wu-certs")
+		err := boshCommand.RunErrand("check-wu-certs", deploymentName)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("mounts ephemeral disks when asked to do so and does not mount them otherwise", func() {
-		err := runTest("ephemeral-disk")
+		err := boshCommand.RunErrand("ephemeral-disk", deploymentName)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -322,7 +100,7 @@ var _ = Describe("BOSH Windows", func() {
 		var slowCompilingDeploymentName string
 
 		AfterEach(func() {
-			err := bosh.Run(fmt.Sprintf("-d %s delete-deployment --force", slowCompilingDeploymentName))
+			err := boshCommand.Run(fmt.Sprintf("-d %s delete-deployment --force", slowCompilingDeploymentName))
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -333,33 +111,29 @@ var _ = Describe("BOSH Windows", func() {
 
 			slowCompilingDeploymentName = fmt.Sprintf("windows-acceptance-test-slow-compile-%d", getTimestampInMs())
 
-			err = config.deployWithManifest(bosh, slowCompilingDeploymentName, stemcellVersion, releaseVersion, manifestPath)
+			err = testConfig.deployWithManifest(boshCommand, slowCompilingDeploymentName, stemcellVersion, releaseVersion, manifestPath)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("ssh enabled", func() {
 		It("allows SSH connection", func() {
-			err := bosh.Run(fmt.Sprintf("-d %s ssh --opts=-T --command=exit", deploymentName))
+			err := boshCommand.Run(fmt.Sprintf("-d %s ssh --opts=-T --command=exit", deploymentName))
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("cleans up ssh users after a successful connection", func() {
-			err := bosh.Run(fmt.Sprintf("-d %s ssh --opts=-T --command=exit", deploymentName))
+			err := boshCommand.Run(fmt.Sprintf("-d %s ssh --opts=-T --command=exit", deploymentName))
 			Expect(err).NotTo(HaveOccurred())
 
-			err = runTest("check-ssh") // test for C:\Users only having one ssh user, net users only containing one ssh user.
+			err = boshCommand.RunErrand("check-ssh", deploymentName) // test for C:\Users only having one ssh user, net users only containing one ssh user.
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })
 
-func runTest(testName string) error {
-	return bosh.Run(fmt.Sprintf("-d %s run-errand --download-logs %s --tty", deploymentName, testName))
-}
-
-func uploadStemcell(config *Config, bosh *BoshCommand) {
-	matches, err := filepath.Glob(config.Stemcellpath)
+func uploadStemcell(config *TestConfig, bosh *BoshCommand) {
+	matches, err := filepath.Glob(config.StemcellPath)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(matches).To(HaveLen(1))
 
@@ -407,7 +181,7 @@ func createBwatsRelease(bosh *BoshCommand) string {
 	Expect(err).NotTo(HaveOccurred())
 
 	for _, zipFile := range zipReader.File {
-		if zipFile.Name == "LGPO_30/"+lgpoFile {
+		if zipFile.Name == fmt.Sprintf("LGPO_30/%s", lgpoFile) {
 			var f *os.File
 			f, err = os.OpenFile(lgpoPath.Name(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, zipFile.Mode())
 			Expect(err).NotTo(HaveOccurred())
@@ -434,6 +208,24 @@ func createBwatsRelease(bosh *BoshCommand) string {
 	Expect(bosh.RunIn("upload-release", releaseDir)).To(Succeed())
 
 	return releaseVersion
+}
+
+type ManifestProperties struct {
+	DeploymentName            string
+	ReleaseName               string
+	AZ                        string
+	VmType                    string
+	RootEphemeralVmType       string
+	VmExtensions              string
+	Network                   string
+	StemcellOs                string
+	StemcellVersion           string
+	ReleaseVersion            string
+	DefaultUsername           string
+	DefaultPassword           string
+	MountEphemeralDisk        bool
+	SSHDisabledByDefault      bool
+	SecurityComplianceApplied bool
 }
 
 func (m ManifestProperties) toVarsString() string {
@@ -500,50 +292,13 @@ func downloadLogs(instanceName string, jobName string, index int, bosh *BoshComm
 	return session.Wait().Out
 }
 
-func getTimestampInMs() int64 {
-	return time.Now().UTC().UnixNano() / int64(time.Millisecond)
-}
-
-func fetchStemcellInfo(stemcellPath string) (StemcellYML, error) {
-	var stemcellInfo StemcellYML
-	tempDir, err := os.MkdirTemp("", "")
-	Expect(err).NotTo(HaveOccurred())
-	defer os.RemoveAll(tempDir) //nolint:errcheck
-
-	cmd := exec.Command("tar", "xf", stemcellPath, "-C", tempDir, "stemcell.MF")
-	session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
-	Expect(err).NotTo(HaveOccurred())
-	Eventually(session, 20*time.Minute).Should(gexec.Exit())
-
-	exitCode := session.ExitCode()
-	if exitCode != 0 {
-		var stderr []byte
-		if session.Err != nil {
-			stderr = session.Err.Contents()
-		}
-		stdout := session.Out.Contents()
-		return stemcellInfo, fmt.Errorf("Non-zero exit code for cmd %q: %d\nSTDERR:\n%s\nSTDOUT:%s\n",
-			strings.Join(cmd.Args, " "), exitCode, stderr, stdout)
-	}
-
-	stemcellMF, err := os.ReadFile(fmt.Sprintf("%s/%s", tempDir, "stemcell.MF"))
-	Expect(err).NotTo(HaveOccurred())
-
-	err = yaml.Unmarshal(stemcellMF, &stemcellInfo)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(stemcellInfo.Version).ToNot(BeNil())
-	Expect(stemcellInfo.Version).ToNot(BeEmpty())
-
-	return stemcellInfo, nil
-}
-
 func downloadFile(prefix, sourceUrl string) (string, error) {
-	tempfile, err := os.CreateTemp("", prefix)
+	tempFile, err := os.CreateTemp("", prefix)
 	if err != nil {
 		return "", err
 	}
 
-	filename := tempfile.Name()
+	filename := tempFile.Name()
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		return "", err
@@ -562,7 +317,7 @@ func downloadFile(prefix, sourceUrl string) (string, error) {
 	return filename, nil
 }
 
-func (c *Config) deployWithManifest(bosh *BoshCommand, deploymentName string, stemcellVersion string, bwatsVersion string, manifestPath string) error {
+func (c *TestConfig) deployWithManifest(bosh *BoshCommand, deploymentName string, stemcellVersion string, bwatsVersion string, manifestPath string) error {
 	manifestProperties := ManifestProperties{
 		DeploymentName:            deploymentName,
 		ReleaseName:               "bwats-release",
@@ -607,7 +362,7 @@ func (c *Config) deployWithManifest(bosh *BoshCommand, deploymentName string, st
 	return nil
 }
 
-func (c *Config) deploy(bosh *BoshCommand, deploymentName string, stemcellVersion string, bwatsVersion string) error {
+func (c *TestConfig) deploy(bosh *BoshCommand, deploymentName string, stemcellVersion string, bwatsVersion string) error {
 	pwd, err := os.Getwd()
 	Expect(err).NotTo(HaveOccurred())
 	manifestPath = filepath.Join(pwd, "assets", "manifest.yml")
