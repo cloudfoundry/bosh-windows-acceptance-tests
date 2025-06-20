@@ -3,7 +3,7 @@ name: check-system
 description: "This errand verifies that Microsoft Auto Updates are disabled on the target machine"
 templates:
   config.json.erb: bin/config.json
-  run.ps1.erb: bin/run.ps1
+  run.ps1: bin/run.ps1
   HWCServer.exe: bin/HWCServer.exe
   security.inf: inf/security.inf
   2019-expected-policies/audit.csv: test-2019/audit.csv

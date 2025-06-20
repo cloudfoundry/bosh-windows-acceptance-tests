@@ -57,8 +57,12 @@ The bulk of our assertions are run as part of the check-system job.
 **This is where you will likely want to make changes**, e.g. to add test coverage around our expectations of happy-path stemcell behavior.
 
 The relevant call chain is:
+
 - CI, (or you, locally), runs `ginkgo .`
 - ginkgo runs `main_test.go`
-- the "check system dep..." test runs the `check-system` bosh errand, whose behavior is defined in `assets/bwats-release/jobs/check-system/spec` and `assets/bwats-release/jobs/check-system/templates/run.ps1.erb`
-- the run.ps1 script defines test functions, and runs them. e.g. `Verify-Dependencies` is defined and run in that run.ps1
+- the "check system dep..." test runs the `check-system` bosh errand, whose behavior is defined in
+  `assets/bwats-release/jobs/check-system/spec`, `assets/bwats-release/jobs/check-system/templates/run.ps1`,
+  and `assets/bwats-release/jobs/check-system/templates/config.json.erb`
+- the run.ps1 script defines test functions, and runs them. e.g. `Verify-Dependencies` is defined and run in that
+  run.ps1
 
