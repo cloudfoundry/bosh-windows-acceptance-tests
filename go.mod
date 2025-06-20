@@ -1,4 +1,4 @@
-module github.com/cloudfoundry-incubator/bosh-windows-acceptance-tests
+module github.com/cloudfoundry/bosh-windows-acceptance-tests
 
 go 1.23.0
 
