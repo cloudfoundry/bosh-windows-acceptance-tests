@@ -1,4 +1,4 @@
-package bosh_windows_acceptance_tests_test
+package windows_stemcell_acceptance_test
 
 import (
 	"archive/zip"
