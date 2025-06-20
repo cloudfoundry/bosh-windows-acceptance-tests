@@ -418,12 +418,10 @@ Verify-PSVersion5
 Verify-VersionFile
 Verify-TimeZone
 
-Import-Module C:\var\vcap\packages\pester\Pester\Pester.psd1
-
 $validatePolicies=[bool]$<%= p("security_compliance.expected_to_comply") %>
-
 if ( $validatePolicies )
 {
+  Install-Module -Name Pester -Force
   $pesterResults = Invoke-Pester $PSScriptRoot/AuditPolicies.Tests.ps1 -PassThru
   if ($pesterResults.FailedCount -gt 0)
   {
