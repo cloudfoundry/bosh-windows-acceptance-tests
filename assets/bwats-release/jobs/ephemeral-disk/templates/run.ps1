@@ -1,6 +1,14 @@
 $ErrorActionPreference = "Stop"
 trap { $host.SetShouldExit(1) }
 
+function Get-Config {
+  $configPath = Join-Path $PSScriptRoot "config.json"
+  Write-Host "Loading '$configPath'"
+  $config = Get-Content $configPath -raw | ConvertFrom-Json
+  Write-Host "Loaded '$configPath'"
+  return $config
+}
+
 function New-RandomFile {
     param (
         [Parameter(Mandatory = $false)]
@@ -34,9 +42,10 @@ function New-RandomFile {
         }
     }
 }
-$RunTest=[bool]$<%= p("run_test.enabled") %>
 
-if ($RunTest) {
+$config = Get-Config
+
+if ($config.run_test_enabled -eq "true") {
     # Note no trailing slash. Important! Trailing slashes on non-symlink folders will return their own path as the target
     # eg (get-item "C:\var\vcap\data\").target -> c:\var\vcap\data
 

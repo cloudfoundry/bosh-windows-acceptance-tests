@@ -4,7 +4,8 @@ name: ephemeral-disk
 description: "This errand verifies ephemeral disk mounting"
 
 templates:
-  run.ps1.erb: bin/run.ps1
+  config.json.erb: bin/config.json
+  run.ps1: bin/run.ps1
 
 packages:
 - golang-windows
